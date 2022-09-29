@@ -1,0 +1,11 @@
+SHELL=/bin/bash
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
+
+# Every 30 minutes
+*/30 * * * * /home/wb570154/check_download_progress.sh
+
+# Every 5 minutes
+*/5 * * * * /home/wb570154/check_scraper_running.sh
+
+# Weekly, Wed at 4:30pm ET
+30 16 * * wed /home/wb570154/report_scraper_progress.sh

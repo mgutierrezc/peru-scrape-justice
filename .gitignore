@@ -1,0 +1,6 @@
+*.png
+log_demo_result.txt
+data/*
+data_cleaned/*
+captcha/*
+!.gitkeep
