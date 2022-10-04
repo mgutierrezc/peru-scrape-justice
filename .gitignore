@@ -7,3 +7,4 @@ captcha/*
 venv/
 .idea/
 __pycache__/
+build/
