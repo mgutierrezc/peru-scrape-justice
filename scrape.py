@@ -29,6 +29,8 @@ import random
 import base64
 import io
 import pandas as pd
+from webdriver_manager.chrome import ChromeDriverManager
+
 from constants import list_all_comb
 import subprocess
 from pathlib import Path
@@ -73,14 +75,14 @@ def get_captcha_text():
     #plt.show()
 
     cv2.imwrite("captcha/screenshot.png",img_dilation)
+    path = Path(__file__).parent / "demo.py"
 
-    cmd = 'D:\Accesos directos\Trabajo\World Bank\WB Repos\environments\scraper_env\Scripts\python demo.py --Transformation TPS --FeatureExtraction ResNet --SequenceModeling BiLSTM --Prediction Attn --image_folder captcha/ --saved_model TPS-ResNet-BiLSTM-Attn.pth'
+    cmd = f'{path} --Transformation TPS --FeatureExtraction ResNet --SequenceModeling BiLSTM --Prediction Attn --image_folder captcha/ --saved_model TPS-ResNet-BiLSTM-Attn.pth'
     out = subprocess.Popen(cmd.split(),
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT)
+            stderr=subprocess.STDOUT, shell=True)
     output, _ = out.communicate()
     list_out = output.decode("ISO-8859-1").strip().split('\n')
-    
     if(list_out != []):
         captcha_text_fin = list_out[-1].split('\t')[1].strip()
         print("captcha_text_fin: ", captcha_text_fin)
@@ -299,12 +301,15 @@ def scraper(file_num, list_comb, year):
             #finding captcha image
             #find part of the page you want image of
             image = driver.find_element_by_id('captcha_image').screenshot_as_png
+            image_src = driver.find_element_by_id('captcha_image').get_attribute('src')
+            print(f'image_src: {image_src}')
             screenshot = Image.open(io.BytesIO(image))
             screenshot.save("captcha/screenshot.png")
 
             captcha_text = get_captcha_text()
+            print(f'captcha_text1: {captcha_text}')
             captcha_text = ''.join(e for e in captcha_text if e.isalnum())
-
+            print(f'captcha_text2: {captcha_text}')
             captcha = driver.find_element_by_id('codigoCaptcha')
             captcha.clear()
 
@@ -449,7 +454,7 @@ def get_chrome_options(year=2019):
 
 
 def get_latest_locations():
-    driver = webdriver.Chrome(options=get_chrome_options())
+    driver = webdriver.Chrome(executable_path="C:\\chromedriver_win32\\chromedriver.exe", options=get_chrome_options())
     driver.get(LINK)
     element = WebDriverWait(driver, 10).until(EC.text_to_be_present_in_element((By.ID, 'distritoJudicial'), PLACEHOLDER_TEXT))
     loc_dropdown = Select(driver.find_element_by_id('distritoJudicial'))
@@ -459,7 +464,7 @@ def get_latest_locations():
 
 
 def get_all_valid_years():
-    driver = webdriver.Chrome(options=get_chrome_options())
+    driver = webdriver.Chrome(executable_path="C:\\chromedriver_win32\\chromedriver.exe",options=get_chrome_options())
     driver.get(LINK)
     element = WebDriverWait(driver, 10).until(EC.text_to_be_present_in_element((By.ID, 'anio'), PLACEHOLDER_TEXT))
     loc_dropdown = Select(driver.find_element_by_id('anio'))
@@ -577,7 +582,7 @@ if __name__ == '__main__':
                     file_num = file_num + 1
                     continue
                 try:
-                    driver = webdriver.Chrome(options=get_chrome_options(year))
+                    driver = webdriver.Chrome(executable_path="C:\\chromedriver_win32\\chromedriver.exe",options=get_chrome_options(year))
                 except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
                     logging.info("Error occured in opening Chrome, restarting scraping from the current file number")
                     continue  # not increasing file num by one so that we start again from the same file number in case of an error

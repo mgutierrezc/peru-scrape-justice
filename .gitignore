@@ -4,3 +4,6 @@ data/*
 data_cleaned/*
 captcha/*
 !.gitkeep
+venv/
+.idea/
+__pycache__/
