@@ -29,7 +29,6 @@ import random
 import base64
 import io
 import pandas as pd
-from webdriver_manager.chrome import ChromeDriverManager
 
 from constants import list_all_comb
 import subprocess
@@ -92,6 +91,10 @@ def get_captcha_text():
         return scraper(file_num, list_comb, year, link)
 
     return captcha_text_fin
+
+def get_captcha_text_via_utterance_text(driver):
+    hidden_text_value = driver.find_element_by_id('1zirobotz0').get_attribute('value')
+    return hidden_text_value
 
 
 def scrape_data():  #to scrape the insides of the site
@@ -300,16 +303,13 @@ def scraper(file_num, list_comb, year):
 
             #finding captcha image
             #find part of the page you want image of
-            image = driver.find_element_by_id('captcha_image').screenshot_as_png
-            image_src = driver.find_element_by_id('captcha_image').get_attribute('src')
-            print(f'image_src: {image_src}')
-            screenshot = Image.open(io.BytesIO(image))
-            screenshot.save("captcha/screenshot.png")
+            # image = driver.find_element_by_id('captcha_image').screenshot_as_png
+            # screenshot = Image.open(io.BytesIO(image))
+            # screenshot.save("captcha/screenshot.png")
 
-            captcha_text = get_captcha_text()
-            print(f'captcha_text1: {captcha_text}')
+            # captcha_text = get_captcha_text()
+            captcha_text = get_captcha_text_via_utterance_text(driver)
             captcha_text = ''.join(e for e in captcha_text if e.isalnum())
-            print(f'captcha_text2: {captcha_text}')
             captcha = driver.find_element_by_id('codigoCaptcha')
             captcha.clear()
 
