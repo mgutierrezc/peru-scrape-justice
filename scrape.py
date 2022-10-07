@@ -92,8 +92,11 @@ def get_captcha_text():
 
     return captcha_text_fin
 
+
 def get_captcha_text_via_utterance_text(driver):
     driver.find_element_by_xpath('//*[@id="btnReload"]').click()
+    wait = WebDriverWait(driver, 5)
+    wait.until(EC.presence_of_element_located((By.ID, "1zirobotz0")))
     hidden_text_value = driver.find_element_by_id('1zirobotz0').get_attribute('value')
     return hidden_text_value
 
