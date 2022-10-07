@@ -93,6 +93,7 @@ def get_captcha_text():
     return captcha_text_fin
 
 def get_captcha_text_via_utterance_text(driver):
+    driver.find_element_by_xpath('//*[@id="btnReload"]').click()
     hidden_text_value = driver.find_element_by_id('1zirobotz0').get_attribute('value')
     return hidden_text_value
 
@@ -316,7 +317,8 @@ def scraper(file_num, list_comb, year):
             captcha.send_keys(captcha_text)
             driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
 
-        except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
+        except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
+            print({"debug_scraper": e})
             logging.error("Error occured while filling details from list_comb on the first page. Exiting...")
             exit(2)
 
