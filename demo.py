@@ -50,7 +50,7 @@ def demo(opt):
             # For max length prediction
             length_for_pred = torch.IntTensor([opt.batch_max_length] * batch_size).to(device)
             text_for_pred = torch.LongTensor(batch_size, opt.batch_max_length + 1).fill_(0).to(device)
-
+            
             if 'CTC' in opt.Prediction:
                 preds = model(image, text_for_pred)
 

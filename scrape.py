@@ -82,13 +82,13 @@ def get_captcha_text():
             stderr=subprocess.STDOUT, shell=True)
     output, _ = out.communicate()
     list_out = output.decode("ISO-8859-1").strip().split('\n')
-    if(list_out != []):
+    if(list_out != [] and len(list_out[-1].split('\t')[1].strip()) == 4):
         captcha_text_fin = list_out[-1].split('\t')[1].strip()
         print("captcha_text_fin: ", captcha_text_fin)
 
     else:
         logging.info("Error occured in Captcha Solving BiLSTM Attention Model")
-        return scraper(file_num, list_comb, year, link)
+        return scraper(file_num, list_comb, year)
 
     return captcha_text_fin
 
@@ -306,13 +306,26 @@ def scraper(file_num, list_comb, year):
 
             #finding captcha image
             #find part of the page you want image of
-            # image = driver.find_element_by_id('captcha_image').screenshot_as_png
-            # screenshot = Image.open(io.BytesIO(image))
-            # screenshot.save("captcha/screenshot.png")
+            image = driver.find_element_by_id('captcha_image').screenshot_as_png
+            screenshot = Image.open(io.BytesIO(image))
+            screenshot.save("captcha/screenshot-test.png")
+            img = Image.open("captcha/screenshot-test.png")
+            img.show()
 
             # captcha_text = get_captcha_text()
-            captcha_text = get_captcha_text_via_utterance_text(driver)
-            captcha_text = ''.join(e for e in captcha_text if e.isalnum())
+            # print(f'captcha_text1: {captcha_text}')
+            # captcha_text = ''.join(e for e in captcha_text if e.isalnum())
+            # print(f'captcha_text2: {captcha_text}')
+            # captcha = driver.find_element_by_id('codigoCaptcha')
+            # captcha.clear()
+
+            # captcha_text = get_captcha_text_via_utterance_text(driver)
+            # captcha_text = ''.join(e for e in captcha_text if e.isalnum())
+            # captcha = driver.find_element_by_id('codigoCaptcha')
+            # captcha.clear()
+            
+            # inputting the captcha manually 
+            captcha_text = input("Please, input the captcha:\n")
             captcha = driver.find_element_by_id('codigoCaptcha')
             captcha.clear()
 
