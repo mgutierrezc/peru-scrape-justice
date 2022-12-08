@@ -28,7 +28,8 @@ def azcaptcha_solver_get(captcha_id):
         print({"captcha_itext":captcha_itext})
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
-
+    if captcha_itext == "ERROR_USER_BALANCE_ZERO":
+        raise SystemExit(captcha_itext)
     return captcha_itext
 
 

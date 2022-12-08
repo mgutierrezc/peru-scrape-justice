@@ -1,5 +1,6 @@
 #List of all possible combinations which I scraped separately from the site, will save time
-list_all_comb = [['AMAZONAS', 'JUZGADO DE PAZ LETRADO', 'CIVIL'],
+list_all_comb = [
+ ['AMAZONAS', 'JUZGADO DE PAZ LETRADO', 'CIVIL'],
  ['AMAZONAS', 'JUZGADO DE PAZ LETRADO', 'FAMILIA CIVIL'],
  ['AMAZONAS', 'JUZGADO DE PAZ LETRADO', 'LABORAL'],
  ['AMAZONAS', 'JUZGADO ESPECIALIZADO', 'CIVIL'],
