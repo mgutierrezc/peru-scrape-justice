@@ -1,44 +1,35 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import argparse
+import datetime
+import io
+import logging
+# FOR SAVING
+import os
+import random
+import shutil
+import string
+import subprocess
+import time
+from pathlib import Path
+
+import cv2
+import numpy as np
+# FOR CAPTCHA
+from PIL import Image
 # importing relevant libraries
 from selenium import webdriver
-from selenium.common import exceptions
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.ui import WebDriverWait, Select
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, \
     StaleElementReferenceException, WebDriverException, \
     ElementNotInteractableException, ElementClickInterceptedException
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-
-import time
-import pandas as pd
-import re
-import numpy as np
-import datetime
-# FOR CAPTCHA
-from PIL import Image
-import cv2
-import matplotlib.pyplot as plt
-# FOR SAVING
-import os
-from selenium.webdriver.common.keys import Keys
-import random
-import base64
-import io
-import pandas as pd
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait, Select
 
 from captcha_solver import azcaptcha_solver_post
 from constants import list_all_comb
-import subprocess
-from pathlib import Path
-import argparse
-import shutil
-import logging
-import string
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
                     level=logging.INFO)
@@ -46,7 +37,9 @@ logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
 LINK = 'https://cej.pj.gob.pe/cej/forms/busquedaform.html'
 PLACEHOLDER_TEXT = "--SELECCIONAR"
 DONE_FLAG = "NO MORE FILES"
-CHROME_PATH =  r"./venv\Lib\site-packages\chromedriver_py\chromedriver_win32.exe"
+CHROME_PATH = r"./venv\Lib\site-packages\chromedriver_py\chromedriver_win32.exe"
+
+global driver
 
 
 # This function cross checks if the element we want to extract exists or not
@@ -334,34 +327,47 @@ def scraper(file_num, list_comb, year):
         # captcha = driver.find_element_by_id('codigoCaptcha')
         # captcha.clear()
 
-        # azcaptcha solver
-        captcha_text = azcaptcha_solver_post()
-        captcha = driver.find_element_by_id('codigoCaptcha')
-        captcha.clear()
+        text = ''
+        text_2 = ''
 
-        captcha.send_keys(captcha_text)
-        driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
+        while True:
+            # azcaptcha solver
+            captcha_text = azcaptcha_solver_post(driver)
+            captcha = driver.find_element_by_id('codigoCaptcha')
+            captcha.clear()
 
-    except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
-        print({"debug_scraper": e})
-        logging.error("Error occured while filling details from list_comb on the first page. Exiting...")
-        exit(2)
+            captcha.send_keys(captcha_text)
+            driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
+            time.sleep(2)
 
-    text = ''
-    text_2 = ''
+            if is_element_present('id', 'codCaptchaError'):
+                element_1 = driver.find_element_by_id("codCaptchaError")
+                text = element_1.text
 
-    time.sleep(2)
+            if is_element_present('id', 'mensajeNoExisteExpedientes'):
+                element_2 = driver.find_element_by_id("mensajeNoExisteExpedientes")
+                text_2 = element_2.text
 
-    if is_element_present('id', 'codCaptchaError'):
-        element_1 = driver.find_element_by_id("codCaptchaError")
-        text = element_1.text
+            if text == '':
+                break
+            else:
+                logging.error(
+                    "Error, captcha solved incorrectly, retrying")  # IT WILL BE PRINTED WHENEVER WE ENTER THE WRONG CAPTCHA, NO NEED TO WORRY
 
-    if is_element_present('id', 'mensajeNoExisteExpedientes'):
-        element_2 = driver.find_element_by_id("mensajeNoExisteExpedientes")
-        text_2 = element_2.text
+                driver.find_element_by_xpath('//*[@id="btnReload"]').click()
+                time.sleep(2)
+                # azcaptcha solver
+                captcha_text = azcaptcha_solver_post(driver)
+                captcha = driver.find_element_by_id('codigoCaptcha')
+                captcha.clear()
 
-    if (text_2 == ''):
-        if (text == ''):
+                captcha.send_keys(captcha_text)
+                driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
+                time.sleep(2)
+                # return scraper(file_num, list_comb,
+                #                year)  # VERY IMPORTANT, RECURSIVELY CALLING THE FUNCTION UNTIL WE GET THE CORRECT CAPTCHA
+
+        if text_2 == '':
             parent_dir = get_parent_raw_html_dir(year)
             directory = "_".join(list_comb + ["file_num", str(file_num)])
             path = os.path.join(parent_dir, directory)
@@ -377,7 +383,7 @@ def scraper(file_num, list_comb, year):
                 logging.warning(f"Failed to click form button, restarting file_num {file_num}")
                 return scraper(file_num, list_comb, year)
 
-            if (no_files):
+            if no_files:
                 logging.info("NO MORE FILES, DELAYED ERROR")
                 flag = "NO MORE FILES, DELAYED ERROR"
                 return flag
@@ -387,16 +393,19 @@ def scraper(file_num, list_comb, year):
             mark_combo_file_num_done(list_comb, file_num, parent_dir)
             combo_flag = "Combo Done"
             return combo_flag
-        else:
-            logging.error(
-                "Error, captcha solved incorrectly, retrying")  # IT WILL BE PRINTED WHENEVER WE ENTER THE WRONG CAPTCHA, NO NEED TO WORRY
-            time.sleep(2)
-            return scraper(file_num, list_comb,
-                           year)  # VERY IMPORTANT, RECURSIVELY CALLING THE FUNCTION UNTIL WE GET THE CORRECT CAPTCHA
 
-    else:
-        logging.info(f"NO MORE FILES for {list_comb}")
-        return DONE_FLAG
+
+
+
+        else:
+            logging.info(f"NO MORE FILES for {list_comb}")
+            return DONE_FLAG
+
+
+    except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
+        print({"debug_scraper": e})
+        logging.error("Error occured while filling details from list_comb on the first page. Exiting...")
+        exit(2)
 
 
 def get_parent_raw_html_dir(year):
@@ -472,7 +481,7 @@ def parse_args():
     return args.locations, args.years
 
 
-def get_chrome_options(year=2019):
+def get_chrome_options():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument('--ignore-certificate-errors')
@@ -489,14 +498,23 @@ def get_chrome_options(year=2019):
 
 
 def get_latest_locations():
-    driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
-    driver.get(LINK)
-    element = WebDriverWait(driver, 10).until(
-        EC.text_to_be_present_in_element((By.ID, 'distritoJudicial'), PLACEHOLDER_TEXT))
-    loc_dropdown = Select(driver.find_element_by_id('distritoJudicial'))
-    locations = set(option.text for option in loc_dropdown.options)
-    locations.remove(PLACEHOLDER_TEXT)
-    return locations
+    try:
+        driver_0 = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
+
+        # driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
+        driver_0.get(LINK)
+        # element = WebDriverWait(driver, 10).until(
+        #     EC.text_to_be_present_in_element((By.ID, 'distritoJudicial'), PLACEHOLDER_TEXT))
+        # loc_dropdown =  WebDriverWait(driver, 10).until(
+        #     EC.text_to_be_present_in_element((By.ID, 'distritoJudicial'), PLACEHOLDER_TEXT))
+        loc_dropdown = Select(driver_0.find_element_by_id('distritoJudicial'))
+        locations = set(option.text for option in loc_dropdown.options)
+        locations.remove(PLACEHOLDER_TEXT)
+        driver_0.close()
+        return locations
+
+    except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
+        logging.info("Error occured in opening Chrome, restarting scraping from the current file number")
 
 
 def get_all_valid_years():
@@ -617,10 +635,9 @@ if __name__ == '__main__':
                     file_num = file_num + 1
                     continue
                 try:
-                    driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options(year))
+                    driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
                 except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
                     logging.info("Error occured in opening Chrome, restarting scraping from the current file number")
-                    continue  # not increasing file num by one so that we start again from the same file number in case of an error
 
                 flag = scraper(file_num, list_comb, year)
                 if (flag == "NO MORE FILES, DELAYED ERROR"):

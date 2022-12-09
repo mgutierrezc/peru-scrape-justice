@@ -2,8 +2,9 @@ import json
 import os
 import time
 from pathlib import Path
-
+import io
 import requests
+from PIL import Image
 from dotenv import load_dotenv
 import logging
 
@@ -33,7 +34,14 @@ def azcaptcha_solver_get(captcha_id):
     return captcha_itext
 
 
-def azcaptcha_solver_post():
+def azcaptcha_solver_post(driver):
+    try:
+        image = driver.find_element_by_id('captcha_image').screenshot_as_png
+        screenshot = Image.open(io.BytesIO(image))
+        screenshot.save("captcha/image-captch.png")
+    except Exception as e:
+        exit(2)
+
     azcaptcha_url = "http://azcaptcha.com/in.php"
     payload = {
         "method": "post",
