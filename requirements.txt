@@ -5,7 +5,7 @@ chardet==3.0.4
 charset-normalizer==2.1.1
 chromedriver==2.24.1
 chromedriver-autoinstaller==0.4.0
-chromedriver-py==109.0.5414.25
+chromedriver-py== 108.0.5359.71
 contourpy==1.0.5
 cycler==0.11.0
 docopt==0.6.2

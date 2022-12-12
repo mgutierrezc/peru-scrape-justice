@@ -513,8 +513,9 @@ def get_latest_locations():
         driver_0.close()
         return locations
 
-    except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
-        logging.info("Error occured in opening Chrome, restarting scraping from the current file number")
+    except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
+        logging.info(e)
+        exit(2)
 
 
 def get_all_valid_years():
@@ -637,7 +638,7 @@ if __name__ == '__main__':
                 try:
                     driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
                 except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
-                    logging.info("Error occured in opening Chrome, restarting scraping from the current file number")
+                    logging.info("Error occurred in opening Chrome, restarting scraping from the current file number")
 
                 flag = scraper(file_num, list_comb, year)
                 if (flag == "NO MORE FILES, DELAYED ERROR"):
