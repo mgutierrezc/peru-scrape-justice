@@ -37,7 +37,7 @@ logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
 LINK = 'https://cej.pj.gob.pe/cej/forms/busquedaform.html'
 PLACEHOLDER_TEXT = "--SELECCIONAR"
 DONE_FLAG = "NO MORE FILES"
-CHROME_PATH = r"./venv\Lib\site-packages\chromedriver_py\chromedriver_win32.exe"
+CHROME_PATH = Path(__file__).parent / "venv/Lib/site-packages/chromedriver_py/chromedriver_win32.exe"
 
 global driver
 
@@ -304,9 +304,9 @@ def scraper(file_num, list_comb, year):
 
         # finding captcha image
         # find part of the page you want image of
-        image = driver.find_element_by_id('captcha_image').screenshot_as_png
-        screenshot = Image.open(io.BytesIO(image))
-        screenshot.save("captcha/image-captch.png")
+        # image = driver.find_element_by_id('captcha_image').screenshot_as_png
+        # screenshot = Image.open(io.BytesIO(image))
+        # screenshot.save("captcha/image-captch.png")
         # img = Image.open("captcha/image-captch.png")
         # img.show()
 
@@ -338,7 +338,7 @@ def scraper(file_num, list_comb, year):
 
             captcha.send_keys(captcha_text)
             driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
-            time.sleep(2)
+            time.sleep(3)
 
             if is_element_present('id', 'codCaptchaError'):
                 element_1 = driver.find_element_by_id("codCaptchaError")
@@ -355,7 +355,7 @@ def scraper(file_num, list_comb, year):
                     "Error, captcha solved incorrectly, retrying")  # IT WILL BE PRINTED WHENEVER WE ENTER THE WRONG CAPTCHA, NO NEED TO WORRY
 
                 driver.find_element_by_xpath('//*[@id="btnReload"]').click()
-                time.sleep(2)
+                time.sleep(3)
                 # azcaptcha solver
                 captcha_text = azcaptcha_solver_post(driver)
                 captcha = driver.find_element_by_id('codigoCaptcha')
@@ -363,7 +363,7 @@ def scraper(file_num, list_comb, year):
 
                 captcha.send_keys(captcha_text)
                 driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
-                time.sleep(2)
+                time.sleep(3)
                 # return scraper(file_num, list_comb,
                 #                year)  # VERY IMPORTANT, RECURSIVELY CALLING THE FUNCTION UNTIL WE GET THE CORRECT CAPTCHA
 
@@ -404,7 +404,7 @@ def scraper(file_num, list_comb, year):
 
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
         print({"debug_scraper": e})
-        logging.error("Error occured while filling details from list_comb on the first page. Exiting...")
+        logging.error("Error occurred while filling details from list_comb on the first page. Exiting...")
         exit(2)
 
 
@@ -483,7 +483,7 @@ def parse_args():
 
 def get_chrome_options():
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--headless")
     chrome_options.add_argument('--ignore-certificate-errors')
     chrome_options.add_argument("--test-type")
     chrome_options.add_argument("--no-sandbox")
