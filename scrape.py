@@ -30,14 +30,16 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 
 from captcha_solver import azcaptcha_solver_post
 from constants import list_all_comb
+from dotenv import load_dotenv
 
+load_dotenv()
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
                     level=logging.INFO)
 
 LINK = 'https://cej.pj.gob.pe/cej/forms/busquedaform.html'
 PLACEHOLDER_TEXT = "--SELECCIONAR"
 DONE_FLAG = "NO MORE FILES"
-CHROME_PATH = Path(__file__).parent / "venv/Lib/site-packages/chromedriver_py/chromedriver_win32.exe"
+CHROME_PATH = os.getenv("CHROME_PATH")
 
 global driver
 
