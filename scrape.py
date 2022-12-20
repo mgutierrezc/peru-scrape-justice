@@ -3,21 +3,17 @@
 
 import argparse
 import datetime
-import io
 import logging
 # FOR SAVING
 import os
 import random
 import shutil
 import string
-import subprocess
 import time
 from pathlib import Path
 
-import cv2
-import numpy as np
+from dotenv import load_dotenv
 # FOR CAPTCHA
-from PIL import Image
 # importing relevant libraries
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, \
@@ -30,7 +26,6 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 
 from captcha_solver import azcaptcha_solver_post
 from constants import list_all_comb
-from dotenv import load_dotenv
 
 load_dotenv()
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
@@ -39,7 +34,7 @@ logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
 LINK = 'https://cej.pj.gob.pe/cej/forms/busquedaform.html'
 PLACEHOLDER_TEXT = "--SELECCIONAR"
 DONE_FLAG = "NO MORE FILES"
-CHROME_PATH = os.getenv("CHROME_PATH")
+CHROME_PATH = os.getenv(r"CHROME_PATH")
 
 global driver
 
@@ -52,45 +47,6 @@ def is_element_present(by, value):
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
         return False
     return True
-
-
-# Captcha_Solver
-# This function solves for the captcha using OpenCV and Tesseract
-def get_captcha_text():
-    img_grey = cv2.imread('captcha/screenshot.png', cv2.IMREAD_GRAYSCALE)
-    thresh = 128
-    img_binary = cv2.threshold(img_grey, thresh, 255, cv2.THRESH_BINARY)[1]
-    # imgplot = plt.imshow(img_binary)
-    # plt.show()
-
-    kernel = np.ones((3, 3), np.uint8)
-
-    img_erosion = cv2.erode(img_binary, kernel, iterations=1)
-    # imgplot = plt.imshow(img_erosion)
-    # plt.show()
-
-    img_dilation = cv2.dilate(img_erosion, kernel, iterations=1)
-    # imgplot = plt.imshow(img_dilation)
-    # plt.show()
-
-    cv2.imwrite("captcha/screenshot.png", img_dilation)
-    path = Path(__file__).parent / "demo.py"
-
-    cmd = f'{path} --Transformation TPS --FeatureExtraction ResNet --SequenceModeling BiLSTM --Prediction Attn --image_folder captcha/ --saved_model TPS-ResNet-BiLSTM-Attn.pth'
-    out = subprocess.Popen(cmd.split(),
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, shell=True)
-    output, _ = out.communicate()
-    list_out = output.decode("ISO-8859-1").strip().split('\n')
-    if (list_out != [] and len(list_out[-1].split('\t')[1].strip()) == 4):
-        captcha_text_fin = list_out[-1].split('\t')[1].strip()
-        print("captcha_text_fin: ", captcha_text_fin)
-
-    else:
-        logging.info("Error occured in Captcha Solving BiLSTM Attention Model")
-        return scraper(file_num, list_comb, year)
-
-    return captcha_text_fin
 
 
 def get_captcha_text_via_utterance_text(driver):
@@ -106,16 +62,19 @@ def scrape_data():  # to scrape the insides of the site
     try:
         button_list = driver.find_elements_by_xpath('//div[@class="celdCentro"]/form/button')
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
-        logging.info("Error occured in getting button links, restarting scraping from the current file number")
-        raise RuntimeError("Error Occured")
+        logging.info("Error occurred in getting button links, restarting scraping from the current file number")
+        driver.quit()
+        raise RuntimeError("Error Occurred")
 
     table_html = []
     case_names_list = []
 
-    if (button_list == []):
+    if len(button_list) == 0:
         no_files_flag = True
     else:
         no_files_flag = False
+
+    logging.info(f"button list: {len(button_list)}")
 
     for index in range(len(button_list)):
 
@@ -126,8 +85,9 @@ def scrape_data():  # to scrape the insides of the site
             element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, '//div[@class="celdCentro"]/form/button')))
         except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
-            logging.info("Error occured in getting button links, restarting scraping from the current file number")
-            raise RuntimeError("Error Occured")
+            driver.quit()
+            logging.info("Error occurred in getting button links, restarting scraping from the current file number")
+            raise RuntimeError("Error Occurred")
 
         button_list = []
         button_list = driver.find_elements_by_xpath('//div[@class="celdCentro"]/form/button')
@@ -153,13 +113,14 @@ def scrape_data():  # to scrape the insides of the site
 
                 attempts += 1
                 if attempts >= 5:
-                    return (None, None, None)
+                    return None, None, None
         #############################################################################################################
 
         html = driver.page_source
         table_html.append(html)
 
-        # driver.execute_script("var scrollingElement = (document.scrollingElement || document.body);scrollingElement.scrollTop = scrollingElement.scrollHeight;")
+        # driver.execute_script("var scrollingElement = (document.scrollingElement ||
+        # document.body);scrollingElement.scrollTop = scrollingElement.scrollHeight;")
 
         if is_element_present("xpath", '//div[@class="celdaGrid celdaGridXe"]'):
             tags = driver.find_elements_by_xpath('//div[@class="celdaGrid celdaGridXe"]')
@@ -167,13 +128,13 @@ def scrape_data():  # to scrape the insides of the site
             logging.info("Error occured, restarting scraping from the current file number")
             raise RuntimeError("Error Occured")
 
-        for index in range(len(tags)):
-            case_names_list.append(tags[index].text)
+        for tag_index in range(len(tags)):
+            case_names_list.append(tags[tag_index].text)
 
         # for downloading the documents
 
         elements_doc = []
-
+        print({"case_names_list:": case_names_list})
         try:
             if is_element_present("xpath", '//div[@class="panel panel-default divResolPar"]'):
                 elements_doc = driver.find_elements_by_class_name("aDescarg")
@@ -183,7 +144,7 @@ def scrape_data():  # to scrape the insides of the site
                 existing_faulty_files = os.listdir(faulty_downloads_dir)
                 expediente_downloads_file = str(expediente_n) + ".txt"
 
-                if (expediente_downloads_file in existing_faulty_files):
+                if expediente_downloads_file in existing_faulty_files:
                     continue
 
                 for i in range(len(elements_doc)):
@@ -192,12 +153,13 @@ def scrape_data():  # to scrape the insides of the site
 
                     attributeValue_link = elements_doc[i].get_attribute("href")
 
-                    target_download_dir = os.path.join('data', expediente_year, 'downloaded_files', subfolder)
+                    target_download_dir = rf"{Path(__file__).parent / os.path.join('data', expediente_year, 'downloaded_files', subfolder)}"
 
                     if not os.path.exists(target_download_dir):
                         p = Path(target_download_dir)
                         p.mkdir(parents=True)
 
+                    # elements_doc[i].click()
                     driver.get(attributeValue_link)
 
                     link_path = target_download_dir + "/link.txt"
@@ -213,7 +175,7 @@ def scrape_data():  # to scrape the insides of the site
 
                     file_names = os.listdir(temp_downloads_dir)
 
-                    if (file_names != []):
+                    if len(file_names) > 0:
                         temp_file_path = os.path.join(temp_downloads_dir, file_names[0])
                         shutil.move(temp_file_path, target_download_dir)
                         logging.info("downloaded")
@@ -226,13 +188,11 @@ def scrape_data():  # to scrape the insides of the site
                             faulty_downloads_path = f'{faulty_downloads_dir}/{expediente_n}.txt'
                             Path(faulty_downloads_path).touch()
 
-
-
-
         except (TimeoutException, StaleElementReferenceException, WebDriverException):
+            driver.quit()
             logging.info(
-                "Error occured in getting links of download files, restarting scraping from the current file number")
-            raise RuntimeError("Error Occured")
+                "Error occurred in getting links of download files, restarting scraping from the current file number")
+            raise RuntimeError("Error Occurred")
 
         finally:
             element_back = "https://cej.pj.gob.pe/cej/forms/resumenform.html"
@@ -304,72 +264,42 @@ def scraper(file_num, list_comb, year):
         driver.execute_script(
             "var scrollingElement = (document.scrollingElement || document.body);scrollingElement.scrollTop = scrollingElement.scrollHeight;")
 
-        # finding captcha image
-        # find part of the page you want image of
-        # image = driver.find_element_by_id('captcha_image').screenshot_as_png
-        # screenshot = Image.open(io.BytesIO(image))
-        # screenshot.save("captcha/image-captch.png")
-        # img = Image.open("captcha/image-captch.png")
-        # img.show()
+        no_more_text = ''
+        sleep_time = 3
+        index = 0
+        while not is_element_present('xpath', '//div[@class="celdCentro"]/form/button'):
+            if index != 0:
+                if is_element_present('id', 'mensajeNoExisteExpedientes'):
+                    no_more_element = driver.find_element_by_id("mensajeNoExisteExpedientes")
+                    no_more_text = no_more_element.text
+                if no_more_text == '':
+                    logging.error(
+                        f"Error, captcha solved incorrectly, retrying..., wait time:{sleep_time} + 2 seconds")
+                    driver.find_element_by_id('btnReload').click()
+                    time.sleep(3)
+                    sleep_time += 2
 
-        # captcha_text = get_captcha_text()
-        # print(f'captcha_text1: {captcha_text}')
-        # captcha_text = ''.join(e for e in captcha_text if e.isalnum())
-        # print(f'captcha_text2: {captcha_text}')
-        # captcha = driver.find_element_by_id('codigoCaptcha')
-        # captcha.clear()
-
-        # captcha_text = get_captcha_text_via_utterance_text(driver)
-        # captcha_text = ''.join(e for e in captcha_text if e.isalnum())
-        # captcha = driver.find_element_by_id('codigoCaptcha')
-        # captcha.clear()
-
-        # inputting the captcha manually
-        # captcha_text = input("Please, input the captcha:\n")
-        # captcha = driver.find_element_by_id('codigoCaptcha')
-        # captcha.clear()
-
-        text = ''
-        text_2 = ''
-
-        while True:
-            # azcaptcha solver
             captcha_text = azcaptcha_solver_post(driver)
             captcha = driver.find_element_by_id('codigoCaptcha')
             captcha.clear()
 
             captcha.send_keys(captcha_text)
             driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
-            time.sleep(3)
+            while True:
+                try:
+                    loader_is_displayed = driver.find_element_by_id('cargando').is_displayed()
+                    if not loader_is_displayed:
+                        break
+                except Exception as e:
+                    break
 
-            if is_element_present('id', 'codCaptchaError'):
-                element_1 = driver.find_element_by_id("codCaptchaError")
-                text = element_1.text
+            time.sleep(sleep_time)
 
-            if is_element_present('id', 'mensajeNoExisteExpedientes'):
-                element_2 = driver.find_element_by_id("mensajeNoExisteExpedientes")
-                text_2 = element_2.text
+            index += 1
 
-            if text == '':
-                break
-            else:
-                logging.error(
-                    "Error, captcha solved incorrectly, retrying")  # IT WILL BE PRINTED WHENEVER WE ENTER THE WRONG CAPTCHA, NO NEED TO WORRY
+        logging.info("Captcha solved correctly")
 
-                driver.find_element_by_xpath('//*[@id="btnReload"]').click()
-                time.sleep(3)
-                # azcaptcha solver
-                captcha_text = azcaptcha_solver_post(driver)
-                captcha = driver.find_element_by_id('codigoCaptcha')
-                captcha.clear()
-
-                captcha.send_keys(captcha_text)
-                driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
-                time.sleep(3)
-                # return scraper(file_num, list_comb,
-                #                year)  # VERY IMPORTANT, RECURSIVELY CALLING THE FUNCTION UNTIL WE GET THE CORRECT CAPTCHA
-
-        if text_2 == '':
+        if no_more_text == '':
             parent_dir = get_parent_raw_html_dir(year)
             directory = "_".join(list_comb + ["file_num", str(file_num)])
             path = os.path.join(parent_dir, directory)
@@ -395,16 +325,11 @@ def scraper(file_num, list_comb, year):
             mark_combo_file_num_done(list_comb, file_num, parent_dir)
             combo_flag = "Combo Done"
             return combo_flag
-
-
-
-
         else:
             logging.info(f"NO MORE FILES for {list_comb}")
             return DONE_FLAG
-
-
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
+        driver.quit()
         print({"debug_scraper": e})
         logging.error("Error occurred while filling details from list_comb on the first page. Exiting...")
         exit(2)
@@ -512,7 +437,7 @@ def get_latest_locations():
         loc_dropdown = Select(driver_0.find_element_by_id('distritoJudicial'))
         locations = set(option.text for option in loc_dropdown.options)
         locations.remove(PLACEHOLDER_TEXT)
-        driver_0.close()
+        driver_0.quit()
         return locations
 
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
@@ -536,12 +461,12 @@ def retry_download(link, max_tries, target_download_dir):
     timeout_time = 10  # wait at max 10 seconds for a file to download
     success = False
 
-    while (tries < max_tries and not success):
+    while tries < max_tries and not success:
         driver.get(attr_link)
         download_wait(default_download_path, timeout_time, False)
         file_names = os.listdir(default_download_path)
 
-        if (file_names != []):
+        if len(file_names) > 0:
             temp_file_path = os.path.join(default_download_path, file_names[0])
             shutil.move(temp_file_path, target_download_dir)
             logging.info("downloaded on try : " + str(tries))
@@ -586,10 +511,9 @@ def download_wait(directory, timeout, nfiles=False):
     return seconds
 
 
-letters = string.ascii_lowercase
-random_string = ''.join(random.choice(letters) for i in range(10))
+
 global default_download_path
-default_download_path = os.path.join('downloads_temp_' + random_string, 'downloaded_files')
+default_download_path = rf"{Path(__file__).parent / 'temp_downloads'}"
 
 global faulty_downloads_dir
 faulty_downloads_dir = 'faulty_downloads'
@@ -632,7 +556,7 @@ if __name__ == '__main__':
             flag = ""
             empty_num = 0
 
-            while (flag != DONE_FLAG and empty_num < 5):
+            while flag != DONE_FLAG and empty_num < 5:
                 if is_combo_file_num_done(list_comb, file_num, parent_raw_html_dir):
                     logging.info(f"Already done. Skipping {list_comb} {file_num}")
                     file_num = file_num + 1
@@ -640,10 +564,11 @@ if __name__ == '__main__':
                 try:
                     driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
                 except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
+                    driver.quit()
                     logging.info("Error occurred in opening Chrome, restarting scraping from the current file number")
 
                 flag = scraper(file_num, list_comb, year)
-                if (flag == "NO MORE FILES, DELAYED ERROR"):
+                if flag == "NO MORE FILES, DELAYED ERROR":
                     empty_num = empty_num + 1
                     logging.info("File was empty, if next " + str(
                         5 - empty_num) + " files are empty, next combination will start")
@@ -653,3 +578,5 @@ if __name__ == '__main__':
             logging.info(f'Done processing {year} {list_comb}')
             mark_combo_done(list_comb, parent_raw_html_dir)
         mark_year_done(year)
+
+    driver.quit()

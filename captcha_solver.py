@@ -1,5 +1,7 @@
 import json
 import os
+import random
+import string
 import time
 from pathlib import Path
 import io
@@ -35,10 +37,14 @@ def azcaptcha_solver_get(captcha_id):
 
 
 def azcaptcha_solver_post(driver):
+    letters = string.ascii_lowercase
+    random_string = ''.join(random.choice(letters) for i in range(10))
+    image_captcha_path = Path(__file__).parent / f"captcha/image-captcha-{random_string}.png"
     try:
         image = driver.find_element_by_id('captcha_image').screenshot_as_png
         screenshot = Image.open(io.BytesIO(image))
-        screenshot.save("captcha/image-captch.png")
+        screenshot.save(image_captcha_path)
+        print("captcha image saved")
     except Exception as e:
         exit(2)
 
@@ -49,9 +55,9 @@ def azcaptcha_solver_post(driver):
         "json": 1
     }
     try:
-        image_captcha_path = Path(__file__).parent / "captcha/image-captch.png"
+        captcha_image = open(image_captcha_path, 'rb')
         image_to_upload = (
-            os.path.basename(image_captcha_path), open(image_captcha_path, 'rb'), 'application/octet-stream')
+            os.path.basename(image_captcha_path), captcha_image, 'application/octet-stream')
     except FileNotFoundError as e:
         logging.error("file not found")
         return None
@@ -62,6 +68,10 @@ def azcaptcha_solver_post(driver):
 
     try:
         res = requests.post(azcaptcha_url, data=payload, files=files)
+        if os.path.isfile(image_captcha_path):
+            captcha_image.close()
+            os.remove(image_captcha_path)
+
         res_answer = json.loads(res.text)
         captcha_id = res_answer["request"]
         if captcha_id:

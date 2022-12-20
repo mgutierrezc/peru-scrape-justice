@@ -1,5 +1,6 @@
 data_raw/
 faulty_downloads/
+temp_downloads/
 .ipynb_checkpoints/
 *.png
 log_demo_result.txt
