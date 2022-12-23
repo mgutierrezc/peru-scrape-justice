@@ -28,7 +28,7 @@ def azcaptcha_solver_get(captcha_id):
         res = requests.get(azcaptcha_url, params=params)
         res_answer = json.loads(res.text)
         captcha_itext = res_answer["request"]
-        print({"captcha_itext":captcha_itext})
+        logging.info({"captcha_itext":captcha_itext})
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
     if captcha_itext == "ERROR_USER_BALANCE_ZERO":
@@ -39,12 +39,12 @@ def azcaptcha_solver_get(captcha_id):
 def azcaptcha_solver_post(driver):
     letters = string.ascii_lowercase
     random_string = ''.join(random.choice(letters) for i in range(10))
-    image_captcha_path = Path(__file__).parent / f"captcha/image-captcha-{random_string}.png"
+    image_captcha_path = f"{os.path.realpath(os.path.dirname(__file__))}/captcha/image-captcha-{random_string}.png"
     try:
         image = driver.find_element_by_id('captcha_image').screenshot_as_png
         screenshot = Image.open(io.BytesIO(image))
         screenshot.save(image_captcha_path)
-        print("captcha image saved")
+        logging.info("captcha image saved")
     except Exception as e:
         exit(2)
 

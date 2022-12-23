@@ -6,9 +6,7 @@ import datetime
 import logging
 # FOR SAVING
 import os
-import random
 import shutil
-import string
 import time
 from pathlib import Path
 
@@ -134,7 +132,7 @@ def scrape_data():  # to scrape the insides of the site
         # for downloading the documents
 
         elements_doc = []
-        print({"case_names_list:": case_names_list})
+        logging.info({"case_names_list:": case_names_list})
         try:
             if is_element_present("xpath", '//div[@class="panel panel-default divResolPar"]'):
                 elements_doc = driver.find_elements_by_class_name("aDescarg")
@@ -174,7 +172,6 @@ def scrape_data():  # to scrape the insides of the site
                     download_wait(temp_downloads_dir, timeout_time, False)
 
                     file_names = os.listdir(temp_downloads_dir)
-
                     if len(file_names) > 0:
                         temp_file_path = os.path.join(temp_downloads_dir, file_names[0])
                         shutil.move(temp_file_path, target_download_dir)
@@ -256,7 +253,7 @@ def scraper(file_num, list_comb, year):
         select.select_by_visible_text(str(
             list_comb[2]))  # Set to civil, can be changed to any other type depending on the requirements of the user
 
-        # input 1 as case file
+        # input case file num
         inputElement = driver.find_element_by_id("numeroExpediente")
         inputElement.send_keys(file_num)
 
@@ -264,20 +261,21 @@ def scraper(file_num, list_comb, year):
         driver.execute_script(
             "var scrollingElement = (document.scrollingElement || document.body);scrollingElement.scrollTop = scrollingElement.scrollHeight;")
 
-        no_more_text = ''
+        no_more_element_is_displayed = False
         sleep_time = 3
         index = 0
         while not is_element_present('xpath', '//div[@class="celdCentro"]/form/button'):
             if index != 0:
                 if is_element_present('id', 'mensajeNoExisteExpedientes'):
-                    no_more_element = driver.find_element_by_id("mensajeNoExisteExpedientes")
-                    no_more_text = no_more_element.text
-                if no_more_text == '':
+                    no_more_element_is_displayed = driver.find_element_by_id(
+                        "mensajeNoExisteExpedientes").is_displayed()
+                if no_more_element_is_displayed:
+                    break
+                else:
                     logging.error(
-                        f"Error, captcha solved incorrectly, retrying..., wait time:{sleep_time} + 2 seconds")
+                        f"Error, captcha solved incorrectly, retrying..., wait time: {sleep_time} seconds")
                     driver.find_element_by_id('btnReload').click()
                     time.sleep(3)
-                    sleep_time += 2
 
             captcha_text = azcaptcha_solver_post(driver)
             captcha = driver.find_element_by_id('codigoCaptcha')
@@ -297,9 +295,9 @@ def scraper(file_num, list_comb, year):
 
             index += 1
 
-        logging.info("Captcha solved correctly")
+        if not no_more_element_is_displayed:
+            logging.info("Captcha solved correctly")
 
-        if no_more_text == '':
             parent_dir = get_parent_raw_html_dir(year)
             directory = "_".join(list_comb + ["file_num", str(file_num)])
             path = os.path.join(parent_dir, directory)
@@ -330,7 +328,7 @@ def scraper(file_num, list_comb, year):
             return DONE_FLAG
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
         driver.quit()
-        print({"debug_scraper": e})
+        logging.info({"debug_scraper": e})
         logging.error("Error occurred while filling details from list_comb on the first page. Exiting...")
         exit(2)
 
@@ -410,7 +408,7 @@ def parse_args():
 
 def get_chrome_options():
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--headless")
     chrome_options.add_argument('--ignore-certificate-errors')
     chrome_options.add_argument("--test-type")
     chrome_options.add_argument("--no-sandbox")
@@ -511,9 +509,8 @@ def download_wait(directory, timeout, nfiles=False):
     return seconds
 
 
-
 global default_download_path
-default_download_path = rf"{Path(__file__).parent / 'temp_downloads'}"
+default_download_path = os.getenv("DOWNLOAD_PATH")
 
 global faulty_downloads_dir
 faulty_downloads_dir = 'faulty_downloads'
