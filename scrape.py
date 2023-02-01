@@ -534,7 +534,11 @@ if __name__ == '__main__':
             logging.info(f'Skipping {year} as it is already done')
             continue
 
-        for list_comb in list_all_comb:
+        locations_to_use = list_all_comb
+        if len(locations) > 0:
+            locations_to_use = [x for x in list_all_comb if x[0] in locations]  # only use parsed locations
+
+        for list_comb in locations_to_use:
             parent_raw_html_dir = get_parent_raw_html_dir(year)
             if is_combo_done(list_comb, parent_raw_html_dir):
                 logging.info(f'Skipping {year} {list_comb} as it is already done')
