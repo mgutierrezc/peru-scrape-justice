@@ -2,17 +2,21 @@
 # coding: utf-8
 
 import argparse
+import asyncio
 import datetime
 import logging
+import coloredlogs
 # FOR SAVING
 import os
 import shutil
+import signal
+import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
-# FOR CAPTCHA
-# importing relevant libraries
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, \
     StaleElementReferenceException, WebDriverException, \
@@ -28,18 +32,49 @@ from constants import list_all_comb
 load_dotenv()
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
                     level=logging.INFO)
+logger = logging.getLogger(__name__)
+coloredlogs.install(logger=logger)
 
 LINK = 'https://cej.pj.gob.pe/cej/forms/busquedaform.html'
 PLACEHOLDER_TEXT = "--SELECCIONAR"
 DONE_FLAG = "NO MORE FILES"
 CHROME_PATH = os.getenv(r"CHROME_PATH")
 
-global driver
+default_download_path = fr"{os.path.realpath(os.path.dirname(__file__))}\temp_downloads"
+
+faulty_downloads_dir = 'faulty_downloads'
+
+if not os.path.exists(faulty_downloads_dir):
+    p = Path(faulty_downloads_dir)
+    p.mkdir(parents=True)
+
+NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS", 10))
+
+
+def get_chrome_options():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument('--ignore-certificate-errors')
+    chrome_options.add_argument("--test-type")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+
+    if not os.path.exists(default_download_path):
+        d_path = Path(default_download_path)
+        d_path.mkdir(parents=True)
+    chrome_options.add_experimental_option('prefs', {'download.default_directory': default_download_path})
+
+    return chrome_options
+
+
+def setup_chrome_driver():
+    driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
+    return driver
 
 
 # This function cross checks if the element we want to extract exists or not
 # not using this will result in errors
-def is_element_present(by, value):
+def is_element_present(by, value, driver):
     try:
         driver.find_element(by=by, value=value)
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
@@ -47,20 +82,13 @@ def is_element_present(by, value):
     return True
 
 
-def get_captcha_text_via_utterance_text(driver):
-    driver.find_element_by_xpath('//*[@id="btnReload"]').click()
-    time.sleep(5)
-    hidden_text_value = driver.find_element_by_id('1zirobotz0').get_attribute('value')
-    return hidden_text_value
-
-
-def scrape_data():  # to scrape the insides of the site
+def scrape_data(driver):  # to scrape the insides of the site
 
     button_list = []  # To scrape the button type links of the documents
     try:
         button_list = driver.find_elements_by_xpath('//div[@class="celdCentro"]/form/button')
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
-        logging.info("Error occurred in getting button links, restarting scraping from the current file number")
+        logging.error("Error occurred in getting button links, restarting scraping from the current file number")
         driver.quit()
         raise RuntimeError("Error Occurred")
 
@@ -84,7 +112,7 @@ def scrape_data():  # to scrape the insides of the site
                 EC.presence_of_element_located((By.XPATH, '//div[@class="celdCentro"]/form/button')))
         except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
             driver.quit()
-            logging.info("Error occurred in getting button links, restarting scraping from the current file number")
+            logging.error("Error occurred in getting button links, restarting scraping from the current file number")
             raise RuntimeError("Error Occurred")
 
         button_list = []
@@ -120,7 +148,7 @@ def scrape_data():  # to scrape the insides of the site
         # driver.execute_script("var scrollingElement = (document.scrollingElement ||
         # document.body);scrollingElement.scrollTop = scrollingElement.scrollHeight;")
 
-        if is_element_present("xpath", '//div[@class="celdaGrid celdaGridXe"]'):
+        if is_element_present("xpath", '//div[@class="celdaGrid celdaGridXe"]', driver):
             tags = driver.find_elements_by_xpath('//div[@class="celdaGrid celdaGridXe"]')
         else:
             logging.info("Error occured, restarting scraping from the current file number")
@@ -134,7 +162,7 @@ def scrape_data():  # to scrape the insides of the site
         elements_doc = []
         logging.info({"case_names_list:": case_names_list})
         try:
-            if is_element_present("xpath", '//div[@class="panel panel-default divResolPar"]'):
+            if is_element_present("xpath", '//div[@class="panel panel-default divResolPar"]', driver):
                 elements_doc = driver.find_elements_by_class_name("aDescarg")
                 expediente_n = driver.find_element_by_class_name("celdaGrid.celdaGridXe").text
                 expediente_year = expediente_n.split("-")[1]
@@ -151,7 +179,7 @@ def scrape_data():  # to scrape the insides of the site
 
                     attributeValue_link = elements_doc[i].get_attribute("href")
 
-                    target_download_dir = rf"{Path(__file__).parent / os.path.join('data', expediente_year, 'downloaded_files', subfolder)}"
+                    target_download_dir = fr"{os.path.realpath(os.path.dirname(__file__))}\{os.path.join('data', expediente_year, 'downloaded_files', subfolder)}"
 
                     if not os.path.exists(target_download_dir):
                         p = Path(target_download_dir)
@@ -179,16 +207,16 @@ def scrape_data():  # to scrape the insides of the site
 
                     else:
                         logging.info("file not downloaded, will retry")
-                        success = retry_download(attributeValue_link, 4, target_download_dir)
+                        success = retry_download(attributeValue_link, 4, target_download_dir, driver)
 
                         if not success:
                             faulty_downloads_path = f'{faulty_downloads_dir}/{expediente_n}.txt'
                             Path(faulty_downloads_path).touch()
 
-        except (TimeoutException, StaleElementReferenceException, WebDriverException):
-            driver.quit()
-            logging.info(
-                "Error occurred in getting links of download files, restarting scraping from the current file number")
+        except (TimeoutException, StaleElementReferenceException, WebDriverException) as e:
+            logging.error(
+                f"Error occurred in getting links of download files, restarting scraping from the current file "
+                f"number:\n: {e}")
             raise RuntimeError("Error Occurred")
 
         finally:
@@ -213,7 +241,7 @@ def html_saver(case_names_list, path, table_html):
 # For entering the site and scraping everything inside
 # This is the master function
 # Please do not tamper with the sleep timers anywhere in this code
-def scraper(file_num, list_comb, year):
+def scraper(file_num, list_comb, driver, year):
     driver.get(LINK)
     # driver.maximize_window()
     # wait 10 seconds before looking for element
@@ -264,16 +292,17 @@ def scraper(file_num, list_comb, year):
         no_more_element_is_displayed = False
         sleep_time = 3
         index = 0
-        while not is_element_present('xpath', '//div[@class="celdCentro"]/form/button'):
+
+        while not is_element_present('xpath', '//div[@class="celdCentro"]/form/button', driver):
             if index != 0:
-                if is_element_present('id', 'mensajeNoExisteExpedientes'):
+                if is_element_present('id', 'mensajeNoExisteExpedientes', driver):
                     no_more_element_is_displayed = driver.find_element_by_id(
                         "mensajeNoExisteExpedientes").is_displayed()
                 if no_more_element_is_displayed:
                     break
                 else:
                     logging.error(
-                        f"Error, captcha solved incorrectly, retrying..., wait time: {sleep_time} seconds")
+                        f"Error, captcha solved incorrectly, retrying...")
                     driver.find_element_by_id('btnReload').click()
                     time.sleep(3)
 
@@ -304,8 +333,8 @@ def scraper(file_num, list_comb, year):
             if not os.path.exists(path):
                 Path(path).mkdir(parents=True)
             try:
-                logging.info(f'processing file_num: {file_num}')
-                table_html, case_names_list, no_files = scrape_data()
+                logging.info(f'processing file_num: {file_num} for {list_comb}')
+                table_html, case_names_list, no_files = scrape_data(driver)
             except RuntimeError:
                 return scraper(file_num, list_comb, year)
 
@@ -328,7 +357,7 @@ def scraper(file_num, list_comb, year):
             return DONE_FLAG
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
         driver.quit()
-        logging.info({"debug_scraper": e})
+        logging.error({"debug_scraper": e})
         logging.error("Error occurred while filling details from list_comb on the first page. Exiting...")
         exit(2)
 
@@ -406,54 +435,33 @@ def parse_args():
     return args.locations, args.years
 
 
-def get_chrome_options():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument('--ignore-certificate-errors')
-    chrome_options.add_argument("--test-type")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-
-    if not os.path.exists(default_download_path):
-        p = Path(default_download_path)
-        p.mkdir(parents=True)
-    chrome_options.add_experimental_option('prefs', {'download.default_directory': default_download_path})
-
-    return chrome_options
-
-
 def get_latest_locations():
     try:
-        driver_0 = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
-
-        # driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
-        driver_0.get(LINK)
-        # element = WebDriverWait(driver, 10).until(
-        #     EC.text_to_be_present_in_element((By.ID, 'distritoJudicial'), PLACEHOLDER_TEXT))
-        # loc_dropdown =  WebDriverWait(driver, 10).until(
-        #     EC.text_to_be_present_in_element((By.ID, 'distritoJudicial'), PLACEHOLDER_TEXT))
-        loc_dropdown = Select(driver_0.find_element_by_id('distritoJudicial'))
+        driver = setup_chrome_driver()
+        driver.get(LINK)
+        loc_dropdown = Select(driver.find_element_by_id('distritoJudicial'))
         locations = set(option.text for option in loc_dropdown.options)
         locations.remove(PLACEHOLDER_TEXT)
-        driver_0.quit()
+        driver.quit()
         return locations
 
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException) as e:
-        logging.info(e)
+        logging.error(e)
         exit(2)
 
 
 def get_all_valid_years():
-    driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
+    driver = setup_chrome_driver()
     driver.get(LINK)
     element = WebDriverWait(driver, 10).until(EC.text_to_be_present_in_element((By.ID, 'anio'), PLACEHOLDER_TEXT))
     loc_dropdown = Select(driver.find_element_by_id('anio'))
     years = set(option.text for option in loc_dropdown.options)
     years.remove(PLACEHOLDER_TEXT)
+    driver.quit()
     return sorted([int(y) for y in years], reverse=True)
 
 
-def retry_download(link, max_tries, target_download_dir):
+def retry_download(link, max_tries, target_download_dir, driver):
     attr_link = link
     tries = 1
     timeout_time = 10  # wait at max 10 seconds for a file to download
@@ -509,15 +517,35 @@ def download_wait(directory, timeout, nfiles=False):
     return seconds
 
 
-global default_download_path
-default_download_path = os.getenv("DOWNLOAD_PATH")
+def split_list(lst, chunk_size):
+    for i in range(0, len(lst), chunk_size):
+        yield lst[i:i + chunk_size]
 
-global faulty_downloads_dir
-faulty_downloads_dir = 'faulty_downloads'
 
-if not os.path.exists(faulty_downloads_dir):
-    p = Path(faulty_downloads_dir)
-    p.mkdir(parents=True)
+def scrape_for_each_comb(list_comb, year, parent_raw_html_directory):
+    logging.info(f'Start processing {year} {list_comb}')
+    file_number = 1  # reset case number to start from 1 for each location-court-type combo
+    flag = ""
+    empty_num = 0
+    web_driver = setup_chrome_driver()
+
+    while flag != DONE_FLAG and empty_num < 5:
+        if is_combo_file_num_done(list_comb, file_number, parent_raw_html_directory):
+            logging.info(f"Already done. Skipping {list_comb} {file_number}")
+            file_number = file_number + 1
+            continue
+
+        flag = scraper(file_number, list_comb, web_driver, year)
+        logging.info(f"{list_comb} file no {file_number}'s flag: {flag}")
+        if flag == "NO MORE FILES, DELAYED ERROR":
+            empty_num = empty_num + 1
+            logging.info("File was empty, if next " + str(
+                5 - empty_num) + " files are empty, next combination will start")
+        file_number = file_number + 1
+    web_driver.quit()
+    mark_combo_done(list_comb, parent_raw_html_directory)
+    return f'Done processing {year} {list_comb}'
+
 
 if __name__ == '__main__':
 
@@ -529,55 +557,60 @@ if __name__ == '__main__':
     if not years:
         years = get_all_valid_years()
 
-    for year in years:
-        if is_year_done(year):
-            logging.info(f'Skipping {year} as it is already done')
+    for scrape_year in years:
+        if is_year_done(scrape_year):
+            logging.info(f'Skipping {scrape_year} as it is already done')
             continue
 
-        locations_to_use = list_all_comb
-        if len(locations) > 0:
-            locations_to_use = [x for x in list_all_comb if x[0] in locations]  # only use parsed locations
+        try:
+            locations_to_use = list_all_comb
+            if locations and len(locations) > 0:
+                locations_to_use = [x for x in list_all_comb if x[0] in locations]  # only use parsed locations
 
-        for list_comb in locations_to_use:
-            parent_raw_html_dir = get_parent_raw_html_dir(year)
-            if is_combo_done(list_comb, parent_raw_html_dir):
-                logging.info(f'Skipping {year} {list_comb} as it is already done')
-                continue
+            futures = []
 
-            if locations and list_comb[0] not in locations:
-                continue
 
-            if list_comb[0] not in valid_locations:
-                logging.warning(
-                    f'Skipping {list_comb} as {list_comb[0]} is not found in the current location dropdown menu')
-                continue
+            def signal_handler(signal, frame):
+                executor.shutdown(wait=False)
+                sys.exit(0)
 
-            logging.info(f'Start processing {year} {list_comb}')
-            file_num = 1  # reset case number to start from 1 for each location-court-type combo
-            flag = ""
-            empty_num = 0
 
-            while flag != DONE_FLAG and empty_num < 5:
-                if is_combo_file_num_done(list_comb, file_num, parent_raw_html_dir):
-                    logging.info(f"Already done. Skipping {list_comb} {file_num}")
-                    file_num = file_num + 1
-                    continue
+            signal.signal(signal.SIGINT, signal_handler)
+            max_workers = NUMBER_OF_WORKERS if NUMBER_OF_WORKERS <= len(locations_to_use) else NUMBER_OF_WORKERS - (
+                        NUMBER_OF_WORKERS - len(locations_to_use))
+            logging.info(f"Max workers set to: {max_workers}")
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 try:
-                    driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
-                except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
-                    driver.quit()
-                    logging.info("Error occurred in opening Chrome, restarting scraping from the current file number")
+                    for location_list in locations_to_use:
+                        parent_raw_html_dir = get_parent_raw_html_dir(scrape_year)
 
-                flag = scraper(file_num, list_comb, year)
-                if flag == "NO MORE FILES, DELAYED ERROR":
-                    empty_num = empty_num + 1
-                    logging.info("File was empty, if next " + str(
-                        5 - empty_num) + " files are empty, next combination will start")
-                file_num = file_num + 1
-                driver.close()
+                        if is_combo_done(location_list, parent_raw_html_dir):
+                            logging.info(f'Skipping {scrape_year} {location_list} as it is already done')
+                            continue
 
-            logging.info(f'Done processing {year} {list_comb}')
-            mark_combo_done(list_comb, parent_raw_html_dir)
-        mark_year_done(year)
+                        if locations and location_list[0] not in locations:
+                            continue
 
-    driver.quit()
+                        if location_list[0] not in valid_locations:
+                            logging.warning(
+                                f'Skipping {location_list} as {location_list[0]} is not found in the current location dropdown menu')
+                            continue
+
+                        futures.append(
+                            executor.submit(scrape_for_each_comb, location_list, scrape_year, parent_raw_html_dir))
+
+                    for future in as_completed(futures):
+                        logging.info(future.result())
+
+
+                except Exception as e:
+                    executor.shutdown(wait=False, cancel_futures=True)
+
+        except Exception as e:
+            template = "An exception of type {0} occurred. Arguments:\n{1!r}"
+            message = template.format(type(e).__name__, e.args)
+            logging.error(f"pool error: {message}")
+            raise
+
+        if not locations:
+            mark_year_done(scrape_year)
