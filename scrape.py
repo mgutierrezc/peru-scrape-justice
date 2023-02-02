@@ -421,6 +421,18 @@ def check_model_file():
         exit(1)
 
 
+def validate_locations_choice(value):
+    choices = list(c[0] for c in list_all_comb)
+    values_to_process = value
+    value = value.replace(',', '')
+    parsed_locations = values_to_process.split(',')
+    for location in parsed_locations:
+        if location not in choices and location != '':
+            raise argparse.ArgumentTypeError(f'{location} is not a valid choice. Available choices: {choices}')
+
+    return value if value != ' ' else ''
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Scrape course case data from https://cej.pj.gob.pe/cej/forms/busquedaform.html')
@@ -428,9 +440,10 @@ def parse_args():
     parser.add_argument('-y', '--years', dest='years', action='store', type=int,
                         nargs='*', choices=list(range(2019, current_year + 1)), default=None,
                         help='years to scrape, default to 2019')
-    parser.add_argument('-l' '--locations', dest='locations', action='store', type=str,
-                        nargs='*', choices=list(c[0] for c in list_all_comb), default=None,
+    parser.add_argument('-l' '--locations', dest='locations', type=validate_locations_choice,
+                        nargs='*', default=None,
                         help='locations to scrape, default to all')
+
     args = parser.parse_args()
     return args.locations, args.years
 
@@ -577,7 +590,7 @@ if __name__ == '__main__':
 
             signal.signal(signal.SIGINT, signal_handler)
             max_workers = NUMBER_OF_WORKERS if NUMBER_OF_WORKERS <= len(locations_to_use) else NUMBER_OF_WORKERS - (
-                        NUMBER_OF_WORKERS - len(locations_to_use))
+                    NUMBER_OF_WORKERS - len(locations_to_use))
             logging.info(f"Max workers set to: {max_workers}")
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 try:
