@@ -423,14 +423,9 @@ def check_model_file():
 
 def validate_locations_choice(value):
     choices = list(c[0] for c in list_all_comb)
-    values_to_process = value
-    value = value.replace(',', '')
-    parsed_locations = values_to_process.split(',')
-    for location in parsed_locations:
-        if location not in choices and location != '':
-            raise argparse.ArgumentTypeError(f'{location} is not a valid choice. Available choices: {choices}')
-
-    return value if value != ' ' else ''
+    if value in choices or value == '':
+        return value
+    raise argparse.ArgumentTypeError(f'{value} is not a valid choice. Available choices: {choices}')
 
 
 def parse_args():
@@ -440,12 +435,13 @@ def parse_args():
     parser.add_argument('-y', '--years', dest='years', action='store', type=int,
                         nargs='*', choices=list(range(2019, current_year + 1)), default=None,
                         help='years to scrape, default to 2019')
-    parser.add_argument('-l' '--locations', dest='locations', type=validate_locations_choice,
-                        nargs='*', default=None,
+    parser.add_argument('-l' '--locations', dest='locations', type=str,
+                        nargs='+', default=None,
                         help='locations to scrape, default to all')
-
     args = parser.parse_args()
-    return args.locations, args.years
+    parsed_location_list = [s.strip() for s in ','.join(args.locations).split(',')]
+    parsed_location_list = [validate_locations_choice(s) for s in parsed_location_list if s]
+    return parsed_location_list, args.years
 
 
 def get_latest_locations():
@@ -592,6 +588,7 @@ if __name__ == '__main__':
             max_workers = NUMBER_OF_WORKERS if NUMBER_OF_WORKERS <= len(locations_to_use) else NUMBER_OF_WORKERS - (
                     NUMBER_OF_WORKERS - len(locations_to_use))
             logging.info(f"Max workers set to: {max_workers}")
+
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 try:
                     for location_list in locations_to_use:
@@ -615,9 +612,8 @@ if __name__ == '__main__':
                     for future in as_completed(futures):
                         logging.info(future.result())
 
-
                 except Exception as e:
-                    executor.shutdown(wait=False, cancel_futures=True)
+                    executor.shutdown(wait=False)
 
         except Exception as e:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
