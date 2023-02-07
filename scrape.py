@@ -412,15 +412,6 @@ def get_done_filename(combo, file_num=None):
     return "_".join(arr)
 
 
-def check_model_file():
-    pretrained_model_filename = 'TPS-ResNet-BiLSTM-Attn.pth'
-    if not os.path.exists(pretrained_model_filename) or \
-            os.path.getsize(pretrained_model_filename) < 100000000:
-        logging.error(
-            'ERROR: Pre-trained data model for captcha missing or incomplete. Try executing `git lfs pull` if your initial clone did not fetch this file.')
-        exit(1)
-
-
 def validate_locations_choice(value):
     choices = list(c[0] for c in list_all_comb)
     if value in choices or value == '':
@@ -558,7 +549,6 @@ def scrape_for_each_comb(list_comb, year, parent_raw_html_directory):
 
 if __name__ == '__main__':
 
-    check_model_file()
     locations, years = parse_args()
     valid_locations = get_latest_locations()
     logging.info(f'All valid locations according to the current location dropdown menu: {valid_locations}')
