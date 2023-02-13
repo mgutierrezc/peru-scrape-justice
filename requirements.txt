@@ -3,7 +3,6 @@ beautifulsoup4==4.8.0
 certifi==2022.9.24
 chardet==3.0.4
 charset-normalizer==2.1.1
-chromedriver-py==110.0.5481.77
 contourpy==1.0.5
 cycler==0.11.0
 docopt==0.6.2
