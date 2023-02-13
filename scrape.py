@@ -16,12 +16,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from chromedriver_py import binary_path
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, \
     StaleElementReferenceException, WebDriverException, \
     ElementNotInteractableException, ElementClickInterceptedException
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -38,7 +40,7 @@ coloredlogs.install(logger=logger)
 LINK = 'https://cej.pj.gob.pe/cej/forms/busquedaform.html'
 PLACEHOLDER_TEXT = "--SELECCIONAR"
 DONE_FLAG = "NO MORE FILES"
-CHROME_PATH = os.getenv(r"CHROME_PATH")
+CHROME_DRIVER_PATH = os.getenv(r"CHROME_PATH")
 
 default_download_path = fr"{os.path.realpath(os.path.dirname(__file__))}\temp_downloads"
 
@@ -68,7 +70,9 @@ def get_chrome_options():
 
 
 def setup_chrome_driver():
-    driver = webdriver.Chrome(executable_path=CHROME_PATH, options=get_chrome_options())
+    # driver = webdriver.Chrome(executable_path=CHROME_DRIVER_PATH, options=get_chrome_options())
+    service_object = Service(binary_path)
+    driver = webdriver.Chrome(service=service_object, options=get_chrome_options())
     return driver
 
 
@@ -86,7 +90,7 @@ def scrape_data(driver):  # to scrape the insides of the site
 
     button_list = []  # To scrape the button type links of the documents
     try:
-        button_list = driver.find_elements_by_xpath('//div[@class="celdCentro"]/form/button')
+        button_list = driver.find_element(By.XPATH, '//div[@class="celdCentro"]/form/button')
     except (NoSuchElementException, TimeoutException, StaleElementReferenceException, WebDriverException):
         logging.error("Error occurred in getting button links, restarting scraping from the current file number")
         driver.quit()
@@ -116,7 +120,7 @@ def scrape_data(driver):  # to scrape the insides of the site
             raise RuntimeError("Error Occurred")
 
         button_list = []
-        button_list = driver.find_elements_by_xpath('//div[@class="celdCentro"]/form/button')
+        button_list = driver.find_element(By.XPATH, '//div[@class="celdCentro"]/form/button')
         try:
             button_list[index].click()
         except (ElementNotInteractableException, ElementClickInterceptedException):
@@ -130,10 +134,10 @@ def scrape_data(driver):  # to scrape the insides of the site
 
         while not link_1:
             try:
-                link_1 = driver.find_element_by_xpath('//div[@class="partes"]')
+                link_1 = driver.find_element(By.XPATH, '//div[@class="partes"]')
             except NoSuchElementException:
                 button_list = []
-                button_list = driver.find_elements_by_xpath('//div[@class="celdCentro"]/form/button')
+                button_list = driver.find_element(By.XPATH, '//div[@class="celdCentro"]/form/button')
                 if index < len(button_list):
                     button_list[index].click()
 
@@ -149,7 +153,7 @@ def scrape_data(driver):  # to scrape the insides of the site
         # document.body);scrollingElement.scrollTop = scrollingElement.scrollHeight;")
 
         if is_element_present("xpath", '//div[@class="celdaGrid celdaGridXe"]', driver):
-            tags = driver.find_elements_by_xpath('//div[@class="celdaGrid celdaGridXe"]')
+            tags = driver.find_element(By.XPATH, '//div[@class="celdaGrid celdaGridXe"]')
         else:
             logging.info("Error occured, restarting scraping from the current file number")
             raise RuntimeError("Error Occured")
@@ -163,8 +167,8 @@ def scrape_data(driver):  # to scrape the insides of the site
         logging.info({"case_names_list:": case_names_list})
         try:
             if is_element_present("xpath", '//div[@class="panel panel-default divResolPar"]', driver):
-                elements_doc = driver.find_elements_by_class_name("aDescarg")
-                expediente_n = driver.find_element_by_class_name("celdaGrid.celdaGridXe").text
+                elements_doc = driver.find_element(By.CLASS_NAME, "aDescarg")
+                expediente_n = driver.find_element(By.CLASS_NAME, "celdaGrid.celdaGridXe").text
                 expediente_year = expediente_n.split("-")[1]
 
                 existing_faulty_files = os.listdir(faulty_downloads_dir)
@@ -250,14 +254,14 @@ def scraper(file_num, list_comb, driver, year):
             EC.text_to_be_present_in_element((By.ID, 'distritoJudicial'), PLACEHOLDER_TEXT))
 
         # selecting LIMA
-        select = Select(driver.find_element_by_id('distritoJudicial'))
+        select = Select(driver.find_element(By.ID, 'distritoJudicial'))
         select.select_by_visible_text(str(list_comb[0]))
 
         # wait 10 seconds before looking for element
         element = WebDriverWait(driver, 10).until(EC.text_to_be_present_in_element((By.ID, 'anio'), PLACEHOLDER_TEXT))
 
         # selecting YEAR
-        select = Select(driver.find_element_by_id('anio'))
+        select = Select(driver.find_element(By.ID, 'anio'))
         select.select_by_visible_text(str(year))
 
         # For JUZGADO DE PAZ LETRADO
@@ -268,7 +272,7 @@ def scraper(file_num, list_comb, driver, year):
             EC.text_to_be_present_in_element((By.ID, 'organoJurisdiccional'), PLACEHOLDER_TEXT))
 
         # Selecting instance of the case as JUZGADO DE PAZ LETRADO
-        select = Select(driver.find_element_by_id('organoJurisdiccional'))
+        select = Select(driver.find_element(By.ID, 'organoJurisdiccional'))
         select.select_by_visible_text(str(list_comb[1]))
 
         # Civil inside JUZGADO DE PAZ LETRADO
@@ -277,12 +281,12 @@ def scraper(file_num, list_comb, driver, year):
         element = WebDriverWait(driver, 10).until(
             EC.text_to_be_present_in_element((By.ID, 'especialidad'), PLACEHOLDER_TEXT))
 
-        select = Select(driver.find_element_by_id('especialidad'))
+        select = Select(driver.find_element(By.ID, 'especialidad'))
         select.select_by_visible_text(str(
             list_comb[2]))  # Set to civil, can be changed to any other type depending on the requirements of the user
 
         # input case file num
-        inputElement = driver.find_element_by_id("numeroExpediente")
+        inputElement = driver.find_element(By.ID, "numeroExpediente")
         inputElement.send_keys(file_num)
 
         # driver.find_element_by_tag_name('body').send_keys(Keys.CONTROL + Keys.HOME)
@@ -296,25 +300,25 @@ def scraper(file_num, list_comb, driver, year):
         while not is_element_present('xpath', '//div[@class="celdCentro"]/form/button', driver):
             if index != 0:
                 if is_element_present('id', 'mensajeNoExisteExpedientes', driver):
-                    no_more_element_is_displayed = driver.find_element_by_id(
+                    no_more_element_is_displayed = driver.find_element(By.ID,
                         "mensajeNoExisteExpedientes").is_displayed()
                 if no_more_element_is_displayed:
                     break
                 else:
                     logging.error(
                         f"Error, captcha solved incorrectly, retrying...")
-                    driver.find_element_by_id('btnReload').click()
+                    driver.find_element(By.ID, 'btnReload').click()
                     time.sleep(3)
 
             captcha_text = azcaptcha_solver_post(driver)
-            captcha = driver.find_element_by_id('codigoCaptcha')
+            captcha = driver.find_element(By.ID, 'codigoCaptcha')
             captcha.clear()
 
             captcha.send_keys(captcha_text)
-            driver.find_element_by_xpath('//*[@id="consultarExpedientes"]').click()
+            driver.find_element(By.XPATH, '//*[@id="consultarExpedientes"]').click()
             while True:
                 try:
-                    loader_is_displayed = driver.find_element_by_id('cargando').is_displayed()
+                    loader_is_displayed = driver.find_element(By.ID, 'cargando').is_displayed()
                     if not loader_is_displayed:
                         break
                 except Exception as e:
@@ -324,8 +328,9 @@ def scraper(file_num, list_comb, driver, year):
 
             index += 1
 
+        logging.info("Captcha solved correctly")
+
         if not no_more_element_is_displayed:
-            logging.info("Captcha solved correctly")
 
             parent_dir = get_parent_raw_html_dir(year)
             directory = "_".join(list_comb + ["file_num", str(file_num)])
@@ -441,7 +446,7 @@ def get_latest_locations():
     try:
         driver = setup_chrome_driver()
         driver.get(LINK)
-        loc_dropdown = Select(driver.find_element_by_id('distritoJudicial'))
+        loc_dropdown = Select(driver.find_element(By.ID, 'distritoJudicial'))
         locations = set(option.text for option in loc_dropdown.options)
         locations.remove(PLACEHOLDER_TEXT)
         driver.quit()
@@ -456,7 +461,7 @@ def get_all_valid_years():
     driver = setup_chrome_driver()
     driver.get(LINK)
     element = WebDriverWait(driver, 10).until(EC.text_to_be_present_in_element((By.ID, 'anio'), PLACEHOLDER_TEXT))
-    loc_dropdown = Select(driver.find_element_by_id('anio'))
+    loc_dropdown = Select(driver.find_element(By.ID, 'anio'))
     years = set(option.text for option in loc_dropdown.options)
     years.remove(PLACEHOLDER_TEXT)
     driver.quit()
