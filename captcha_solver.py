@@ -53,7 +53,8 @@ def azcaptcha_solver_post(driver):
     letters = string.ascii_lowercase
     random_string = ''.join(random.choice(letters) for i in range(10))
     captcha_name = f"image-captcha-{random_string}.png"
-    image_captcha_path = fr"{os.path.realpath(os.path.dirname(__file__))}\{os.path.join('captcha', captcha_name)}"
+    image_captcha_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'captcha', captcha_name)
+    # image_captcha_path = fr"{os.path.realpath(os.path.dirname(__file__))}\{os.path.join('captcha', captcha_name)}"
     try:
         image = driver.find_element(By.ID, 'captcha_image').screenshot_as_png
         screenshot = Image.open(io.BytesIO(image))
