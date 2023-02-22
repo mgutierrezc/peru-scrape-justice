@@ -1,10 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import argparse
 import datetime
-import logging
-# FOR SAVING
 import os
 import shutil
 import signal
@@ -13,7 +8,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import coloredlogs
+import coloredlogs, logging
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, \
@@ -34,6 +29,7 @@ logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
 logger = logging.getLogger(__name__)
 coloredlogs.install(logger=logger)
 
+
 LINK = 'https://cej.pj.gob.pe/cej/forms/busquedaform.html'
 PLACEHOLDER_TEXT = "--SELECCIONAR"
 DONE_FLAG = "NO MORE FILES"
@@ -49,7 +45,8 @@ if not os.path.exists(faulty_downloads_dir):
 
 NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS", 10))
 IS_QUIT_FLAG = False
-
+drivers = []
+global_executor = None
 
 def get_firefox_options():
     options = firefox_options()
@@ -83,6 +80,15 @@ def kill_windows_process(process):
         logger.error(f"kill error {e}")
         pass
 
+def signal_handler(signal, frame):
+    global IS_QUIT_FLAG
+    IS_QUIT_FLAG = True
+    logger.warning(f"signal handler called")
+    for driver in drivers:
+        driver.quit() 
+    kill_windows_process("firefox.exe")
+    kill_windows_process("geckodriver.exe")
+    
 
 # This function cross checks if the element we want to extract exists or not
 # not using this will result in errors
@@ -361,11 +367,9 @@ def scraper(file_num, list_comb, driver, year):
         else:
             logging.info(f"NO MORE FILES for {list_comb}")
             return DONE_FLAG
-    except Exception as e:
-        driver.quit()
-        logging.error({"debug_scraper": e})
-        logging.error("Error occurred while filling details from list_comb on the first page. Exiting...")
-        exit(2)
+    except (Exception, KeyboardInterrupt) as e:
+        logging.error({"Scrapper func error": e})
+        signal_handler()
 
 
 def get_parent_raw_html_dir(year):
@@ -546,6 +550,13 @@ def scrape_for_each_comb(list_comb, year, parent_raw_html_directory):
     flag = ""
     empty_num = 0
     web_driver = setup_browser_driver()
+    drivers.append(web_driver)
+
+    if IS_QUIT_FLAG:
+         flag = DONE_FLAG # end the loop
+         if global_executor:
+             global_executor.shutdown(wait=False, cancel_futures=True) 
+         sys.exit(0)
 
     while flag != DONE_FLAG and empty_num < 5 and not IS_QUIT_FLAG:
         if is_combo_file_num_done(list_comb, file_number, parent_raw_html_directory):
@@ -566,6 +577,7 @@ def scrape_for_each_comb(list_comb, year, parent_raw_html_directory):
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, signal_handler)
     locations, years = parse_args()
     valid_locations = get_latest_locations()
     logging.info(f'All valid locations according to the current location dropdown menu: {valid_locations}')
@@ -586,23 +598,13 @@ if __name__ == '__main__':
             futures = []
 
 
-            def signal_handler(signal, frame):
-                logger.warning(f"signal handler called")
-                global IS_QUIT_FLAG
-                IS_QUIT_FLAG = True
-                kill_windows_process("firefox.exe")
-                kill_windows_process("geckodriver.exe")
-                executor.shutdown(wait=False)
-                sys.exit(0)
-
-
-            signal.signal(signal.SIGINT, signal_handler)
             max_workers = NUMBER_OF_WORKERS if NUMBER_OF_WORKERS <= len(locations_to_use) else NUMBER_OF_WORKERS - (
                     NUMBER_OF_WORKERS - len(locations_to_use))
             logging.info(f"Max workers set to: {max_workers}")
-
+             
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-
+               
+                global_executor = executor
                 for location_list in locations_to_use:
                     parent_raw_html_dir = get_parent_raw_html_dir(scrape_year)
 
@@ -624,15 +626,11 @@ if __name__ == '__main__':
                 for future in as_completed(futures):
                     logging.info(future.result())
 
-        except Exception as e:
-            IS_QUIT_FLAG = True
-            kill_windows_process("firefox.exe")
-            kill_windows_process("geckodriver.exe")
-            executor.shutdown(wait=False)
+        except (Exception, KeyboardInterrupt) as e:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(e).__name__, e.args)
             logging.error(f"pool error: {message}")
-            raise
+            signal_handler()
 
         if not locations:
             mark_year_done(scrape_year)

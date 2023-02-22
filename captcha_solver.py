@@ -3,7 +3,6 @@ import os
 import random
 import string
 import time
-from pathlib import Path
 import io
 import requests
 from PIL import Image
