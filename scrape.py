@@ -196,7 +196,8 @@ def scrape_data(driver):  # to scrape the insides of the site
                     if not os.path.exists(target_download_dir):
                         p = Path(target_download_dir)
                         p.mkdir(parents=True)
-                    elements_doc[i].click()
+                    # elements_doc[i].click()
+                    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(elements_doc[i])).click()
                     # driver.get(attributeValue_link)
 
                     link_path = target_download_dir + "/link.txt"
