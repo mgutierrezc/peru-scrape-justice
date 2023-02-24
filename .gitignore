@@ -1,6 +1,7 @@
 data_raw/
-faulty_downloads/
-temp_downloads/
+busquedaform_faulty_downloads/
+casillero_digital_temp_downloads/
+busquedaform_temp_downloads/
 .ipynb_checkpoints/
 *.png
 log_demo_result.txt

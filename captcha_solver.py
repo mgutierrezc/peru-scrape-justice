@@ -7,12 +7,9 @@ import io
 import requests
 from PIL import Image
 from dotenv import load_dotenv
-import logging
-
 from selenium.webdriver.common.by import By
+from utils import logger
 
-logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
-                    level=logging.INFO)
 
 load_dotenv()
 
@@ -26,7 +23,7 @@ def azcaptcha_solver_get(captcha_id):
         "key": os.getenv("CAPTCHA_APIKEY"),
         "action": "get",
         "id": captcha_id,
-        "json": 1
+        "json": 1,
     }
     try:
         res = requests.get(azcaptcha_url, params=params)
@@ -41,7 +38,9 @@ def azcaptcha_solver_get(captcha_id):
     if captcha_itext == "CAPCHA_NOT_READY":
         global tries
         tries += 1
-        logging.info(f"captcha_id: {captcha_id} Retrying to get captcha  in 5 seconds...")
+        logging.info(
+            f"captcha_id: {captcha_id} Retrying to get captcha  in 5 seconds..."
+        )
         time.sleep(5)
         if tries < 6:
             return azcaptcha_solver_get(captcha_id)
@@ -50,36 +49,35 @@ def azcaptcha_solver_get(captcha_id):
 
 def azcaptcha_solver_post(driver):
     letters = string.ascii_lowercase
-    random_string = ''.join(random.choice(letters) for i in range(10))
+    random_string = "".join(random.choice(letters) for i in range(10))
     captcha_name = f"image-captcha-{random_string}.png"
-    image_captcha_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'captcha', captcha_name)
+    image_captcha_path = os.path.join(
+        os.path.realpath(os.path.dirname(__file__)), "captcha", captcha_name
+    )
     # image_captcha_path = fr"{os.path.realpath(os.path.dirname(__file__))}\{os.path.join('captcha', captcha_name)}"
     try:
-        image = driver.find_element(By.ID, 'captcha_image').screenshot_as_png
+        image = driver.find_element(By.ID, "captcha_image").screenshot_as_png
         screenshot = Image.open(io.BytesIO(image))
         screenshot.save(image_captcha_path)
-        logging.info("captcha image saved")
+        logger.info("captcha image saved")
     except Exception as e:
-        logging.error(f"azcaptcha_solver_post error; {e}")
+        logger.error(f"azcaptcha_solver_post error; {e}")
         exit(2)
 
     azcaptcha_url = "http://azcaptcha.com/in.php"
-    payload = {
-        "method": "post",
-        "key": os.getenv("CAPTCHA_APIKEY"),
-        "json": 1
-    }
+    payload = {"method": "post", "key": os.getenv("CAPTCHA_APIKEY"), "json": 1}
     try:
-        captcha_image = open(image_captcha_path, 'rb')
+        captcha_image = open(image_captcha_path, "rb")
         image_to_upload = (
-            os.path.basename(image_captcha_path), captcha_image, 'application/octet-stream')
+            os.path.basename(image_captcha_path),
+            captcha_image,
+            "application/octet-stream",
+        )
     except FileNotFoundError as e:
-        logging.error("file not found")
+        logger.error("file not found")
         return None
 
-    files = {
-        "file": image_to_upload
-    }
+    files = {"file": image_to_upload}
 
     try:
         res = requests.post(azcaptcha_url, data=payload, files=files)
@@ -94,5 +92,67 @@ def azcaptcha_solver_post(driver):
             return azcaptcha_solver_get(captcha_id)
         return None
     except requests.exceptions.RequestException as e:
-        logging.error(e)
+        logger.error(e)
+        raise SystemExit(e)
+
+
+def azcaptcha_solver_recaptchav2_get(captcha_id):
+
+    azcaptcha_url = "http://azcaptcha.com/res.php"
+    params = {
+        "key": os.getenv("CAPTCHA_APIKEY"),
+        "action": "get",
+        "id": captcha_id,
+        "json": 1,
+    }
+    try:
+        res = requests.get(azcaptcha_url, params=params)
+        res_answer = json.loads(res.text)
+        token_answer = res_answer["request"]
+        logger.info({"token_answer": token_answer})
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(e)
+    if token_answer == "ERROR_USER_BALANCE_ZERO":
+        raise SystemExit(token_answer)
+  
+    if token_answer == "CAPCHA_NOT_READY":
+        global tries
+        tries += 1
+        logger.info(
+            f"captcha_id: {captcha_id} Retrying to get captcha response in 20 seconds..."
+        )
+        time.sleep(20)
+        if tries < 10:
+            return azcaptcha_solver_recaptchav2_get(captcha_id)
+        else:
+            token_answer = ""
+    logger.info({"token_answer": token_answer})
+    return token_answer
+
+
+def azcaptcha_recaptchav2_solver_post():
+
+    azcaptcha_url = "http://azcaptcha.com/in.php"
+    data_site_key = "6Lfu60YbAAAAAPsz0YozVslwqq1OfChcnO77Q060"
+    payload = {
+        "method": "userrecaptcha",
+        "key": os.getenv("CAPTCHA_APIKEY"),
+        "googlekey": data_site_key,
+        "pageurl": "https://sap.pj.gob.pe/casillero-digital-web/#/busqueda",
+        "json": 1,
+    }
+
+    try:
+        res = requests.post(azcaptcha_url, data=payload)
+        res_answer = json.loads(res.text)
+        captcha_id = res_answer["request"]
+        if captcha_id:
+            time.sleep(20)
+            g_response = azcaptcha_solver_recaptchav2_get(captcha_id)
+            if g_response == "ERROR_INVALID_SITEKEY":
+               azcaptcha_recaptchav2_solver_post()
+            return g_response
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.error(e)
         raise SystemExit(e)
