@@ -10,6 +10,7 @@ data_cleaned/*
 captcha/*
 !.gitkeep
 venv/
+linux_venv/
 .idea/
 __pycache__/
 build/

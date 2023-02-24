@@ -80,15 +80,16 @@ def set_up_proxy():
 
 
 def setup_browser_driver(download_path, is_headless=True, is_proxy=False):
-    service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
-    service_object.start()
+    # service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
+    # service_object.start()
 
-    driver = webdriver.Firefox(
-        options=get_firefox_options(download_path, is_headless),
-        firefox_profile=set_up_firefox_profile(),
-        proxy=set_up_proxy() if is_proxy else None,
-    )
-
+    # driver = webdriver.Firefox(
+    #     options=get_firefox_options(download_path, is_headless),
+    #     firefox_profile=set_up_firefox_profile(),
+    #     proxy=set_up_proxy() if is_proxy else None,
+    # )
+    options = firefox_options()
+    driver = webdriver.Firefox(options=options)
     return driver
 
 
