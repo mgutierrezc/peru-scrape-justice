@@ -86,7 +86,6 @@ def scrape_data(driver):  # to scrape the insides of the site
     logger.info(f"button list: {len(button_list)}")
 
     for index in range(len(button_list)):
-
         logger.info(
             "--" + str(index) + "--"
         )  # This will tell you which doc is being processed
@@ -183,7 +182,6 @@ def scrape_data(driver):  # to scrape the insides of the site
                     continue
 
                 for i in range(len(elements_doc)):
-
                     subfolder = str(expediente_n) + "_" + str(i + 1)
 
                     attributeValue_link = elements_doc[i].get_attribute("href")
@@ -362,7 +360,6 @@ def scraper(file_num, list_comb, driver, year):
         logger.info("Captcha solved correctly")
 
         if not no_more_element_is_displayed:
-
             parent_dir = get_parent_raw_html_dir(year)
             directory = "_".join(list_comb + ["file_num", str(file_num)])
             path = os.path.join(parent_dir, directory)
@@ -399,7 +396,7 @@ def scraper(file_num, list_comb, driver, year):
 
 
 def get_parent_raw_html_dir(year):
-    return os.path.join("data", str(year), "raw_html")
+    return os.path.join(final_data_folder, str(year), "raw_html")
 
 
 def mark_combo_file_num_done(combo, file_num, parent_dir):
@@ -632,7 +629,6 @@ if __name__ == "__main__":
             logger.info(f"Max workers set to: {max_workers}")
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-
                 global_executor = executor
                 for location_list in locations_to_use:
                     parent_raw_html_dir = get_parent_raw_html_dir(scrape_year)
