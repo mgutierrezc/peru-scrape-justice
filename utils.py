@@ -28,10 +28,10 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(logger=logger)
 
 BROWSER_DRIVER_PATH = os.getenv(
-    r"BROWSER_DRIVER_PATH", r"C:\geckodriver\geckodriver.exe"
+    r"BROWSER_DRIVER_PATH"
 )
 FIREFOX_EXECUTABLE_PATH = os.getenv(
-    r"FIREFOX_EXECUTABLE_PATH", r"C:\Program Files\Mozilla Firefox\firefox.exe"
+    r"FIREFOX_EXECUTABLE_PATH"
 )
 
 index = int(uniform(0, len(PROXY)))
@@ -43,7 +43,7 @@ def get_firefox_options(download_path, is_headless):
     if is_headless:
         options.add_argument('-headless')
         
-    options.binary_location = FIREFOX_EXECUTABLE_PATH
+    options.binary_location =  FIREFOX_EXECUTABLE_PATH
 
     if not os.path.exists(download_path):
         d_path = Path(download_path)
@@ -80,16 +80,17 @@ def set_up_proxy():
 
 
 def setup_browser_driver(download_path, is_headless=True, is_proxy=False):
-    # service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
-    # service_object.start()
+    if not BROWSER_DRIVER_PATH or not FIREFOX_EXECUTABLE_PATH:
+        logger.error("The following env are requied: BROWSER_DRIVER_PATH, FIREFOX_EXECUTABLE_PATH")
+    service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
+    service_object.start()
 
-    # driver = webdriver.Firefox(
-    #     options=get_firefox_options(download_path, is_headless),
-    #     firefox_profile=set_up_firefox_profile(),
-    #     proxy=set_up_proxy() if is_proxy else None,
-    # )
-    options = firefox_options()
-    driver = webdriver.Firefox(options=options)
+    driver = webdriver.Firefox(
+        options=get_firefox_options(download_path, is_headless),
+        firefox_profile=set_up_firefox_profile(),
+        proxy=set_up_proxy() if is_proxy else None
+    )
+    
     return driver
 
 

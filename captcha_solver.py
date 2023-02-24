@@ -29,7 +29,7 @@ def azcaptcha_solver_get(captcha_id):
         res = requests.get(azcaptcha_url, params=params)
         res_answer = json.loads(res.text)
         captcha_itext = res_answer["request"]
-        logging.info({"captcha_itext": captcha_itext})
+        logger.info({"captcha_itext": captcha_itext})
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
     if captcha_itext == "ERROR_USER_BALANCE_ZERO":
@@ -38,7 +38,7 @@ def azcaptcha_solver_get(captcha_id):
     if captcha_itext == "CAPCHA_NOT_READY":
         global tries
         tries += 1
-        logging.info(
+        logger.info(
             f"captcha_id: {captcha_id} Retrying to get captcha  in 5 seconds..."
         )
         time.sleep(5)

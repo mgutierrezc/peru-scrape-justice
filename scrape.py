@@ -54,7 +54,7 @@ if not os.path.exists(faulty_downloads_dir):
     p = Path(faulty_downloads_dir)
     p.mkdir(parents=True)
 
-NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS", 10))
+NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS"))
 IS_QUIT_FLAG = False
 drivers = []
 global_executor = None
