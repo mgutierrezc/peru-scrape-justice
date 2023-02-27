@@ -658,6 +658,7 @@ def keyboard_cancle(signal, frame):
     logger.warning("Received Ctrl-C. Stopping threads...")
     stop_event.set()
     kill_os_process("firefox")
+    sys.exit(0)
 
 
 signal.signal(signal.SIGINT, keyboard_cancle)
@@ -676,6 +677,7 @@ def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
             except urllib3.exceptions.ProtocolError as e:
                 stop_event.set()
                 kill_os_process("firefox")
+                sys.exit(0)
 
             semaphore.release()
             logger.info(f"released semaphore")
@@ -683,6 +685,7 @@ def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
         logger.error(f"worker error: {e}")
         stop_event.set()
         kill_os_process("firefox")
+        sys.exit(0)
 
 if __name__ == "__main__":
     locations, years = parse_args()
@@ -745,6 +748,7 @@ if __name__ == "__main__":
             logger.error(f"pool error: {message}")
             stop_event.set()
             kill_os_process("firefox")
+            sys.exit(0)
 
     # Start all threads at the same time
     for t in threads:
