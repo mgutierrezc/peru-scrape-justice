@@ -405,7 +405,7 @@ class Scrapper:
                     f"Error occurred in getting links of download files, restarting scraping from the current file "
                     f"number:\n: {e}"
                 )
-                raise RuntimeError("Error Occurred")
+                # raise RuntimeError("Error Occurred")
 
             finally:
                 element_back = "https://cej.pj.gob.pe/cej/forms/resumenform.html"
