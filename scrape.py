@@ -622,7 +622,7 @@ class Scrapper:
             p = Path(temp_downloads_dir)
             p.mkdir(parents=True)
 
-        web_driver = setup_browser_driver(temp_downloads_dir, is_headless=False)
+        web_driver = setup_browser_driver(temp_downloads_dir)
         drivers.append(web_driver)
 
         while flag != DONE_FLAG and empty_num < 5 and not stop_event.is_set():
