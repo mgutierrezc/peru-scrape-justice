@@ -55,6 +55,14 @@ if not os.path.exists(faulty_downloads_dir):
     p = Path(faulty_downloads_dir)
     p.mkdir(parents=True)
 
+if not os.path.exists(default_temp_download_folder):
+    p = Path(default_temp_download_folder)
+    p.mkdir(parents=True)
+    
+if not os.path.exists(final_data_folder):
+    p = Path(final_data_folder)
+    p.mkdir(parents=True)
+    
 NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS", 10))
 drivers = []
 threads = []
