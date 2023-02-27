@@ -440,7 +440,7 @@ def parse_args():
         parsed_location_list = [s.strip() for s in ','.join(args.locations).split(',')]
         parsed_location_list = [validate_locations_choice(s) for s in parsed_location_list if s]
         return parsed_location_list, args.years
-    return None, None
+    return None, args.years
 
 
 def get_latest_locations():

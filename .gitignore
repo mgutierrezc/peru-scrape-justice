@@ -10,7 +10,7 @@ captcha/*
 !.gitkeep
 venv/
 .idea/
-__pycache__/
+__pycache__/*
 build/
 .env
 geckodriver.log
