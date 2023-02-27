@@ -35,7 +35,7 @@ def azcaptcha_solver_get(captcha_id):
     if captcha_itext == "ERROR_USER_BALANCE_ZERO":
         raise SystemExit(captcha_itext)
 
-    if captcha_itext == "CAPCHA_NOT_READY":
+    if captcha_itext == "CAPCHA_NOT_READY" or captcha_itext == "ERROR_CAPTCHA_UNSOLVABLE":
         global tries
         tries += 1
         logger.info(
@@ -90,68 +90,6 @@ def azcaptcha_solver_post(driver):
         if captcha_id:
             time.sleep(5)
             return azcaptcha_solver_get(captcha_id)
-        return None
-    except requests.exceptions.RequestException as e:
-        logger.error(e)
-        raise SystemExit(e)
-
-
-def azcaptcha_solver_recaptchav2_get(captcha_id):
-
-    azcaptcha_url = "http://azcaptcha.com/res.php"
-    params = {
-        "key": os.getenv("CAPTCHA_APIKEY"),
-        "action": "get",
-        "id": captcha_id,
-        "json": 1,
-    }
-    try:
-        res = requests.get(azcaptcha_url, params=params)
-        res_answer = json.loads(res.text)
-        token_answer = res_answer["request"]
-        logger.info({"token_answer": token_answer})
-    except requests.exceptions.RequestException as e:
-        raise SystemExit(e)
-    if token_answer == "ERROR_USER_BALANCE_ZERO":
-        raise SystemExit(token_answer)
-  
-    if token_answer == "CAPCHA_NOT_READY":
-        global tries
-        tries += 1
-        logger.info(
-            f"captcha_id: {captcha_id} Retrying to get captcha response in 20 seconds..."
-        )
-        time.sleep(20)
-        if tries < 10:
-            return azcaptcha_solver_recaptchav2_get(captcha_id)
-        else:
-            token_answer = ""
-    logger.info({"token_answer": token_answer})
-    return token_answer
-
-
-def azcaptcha_recaptchav2_solver_post():
-
-    azcaptcha_url = "http://azcaptcha.com/in.php"
-    data_site_key = "6Lfu60YbAAAAAPsz0YozVslwqq1OfChcnO77Q060"
-    payload = {
-        "method": "userrecaptcha",
-        "key": os.getenv("CAPTCHA_APIKEY"),
-        "googlekey": data_site_key,
-        "pageurl": "https://sap.pj.gob.pe/casillero-digital-web/#/busqueda",
-        "json": 1,
-    }
-
-    try:
-        res = requests.post(azcaptcha_url, data=payload)
-        res_answer = json.loads(res.text)
-        captcha_id = res_answer["request"]
-        if captcha_id:
-            time.sleep(20)
-            g_response = azcaptcha_solver_recaptchav2_get(captcha_id)
-            if g_response == "ERROR_INVALID_SITEKEY":
-               azcaptcha_recaptchav2_solver_post()
-            return g_response
         return None
     except requests.exceptions.RequestException as e:
         logger.error(e)

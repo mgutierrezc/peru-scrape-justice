@@ -55,7 +55,7 @@ if not os.path.exists(faulty_downloads_dir):
     p = Path(faulty_downloads_dir)
     p.mkdir(parents=True)
 
-NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS"))
+NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS", 10))
 drivers = []
 threads = []
 global_executor = None
@@ -205,7 +205,9 @@ class Scrapper:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    def scrape_data(self, driver):  # to scrape the insides of the site
+    def scrape_data(
+        self, driver, temp_downloads_dir, location_name
+    ):  # to scrape the insides of the site
         button_list = []  # To scrape the button type links of the documents
         try:
             button_list = driver.find_elements(
@@ -249,7 +251,7 @@ class Scrapper:
                 WebDriverException,
             ):
                 driver.quit()
-                logger.error(
+                logger.warning(
                     "Error occurred in getting button links, restarting scraping from the current file number"
                 )
                 raise RuntimeError("Error Occurred")
@@ -300,7 +302,7 @@ class Scrapper:
                     By.XPATH, '//div[@class="celdaGrid celdaGridXe"]'
                 )
             else:
-                logger.info(
+                logger.warning(
                     "Error occured, restarting scraping from the current file number"
                 )
                 raise RuntimeError("Error Occured")
@@ -337,12 +339,14 @@ class Scrapper:
                             final_data_folder,
                             expediente_year,
                             "downloaded_files",
+                            location_name,
                             subfolder,
                         )
 
                         if not os.path.exists(target_download_dir):
                             p = Path(target_download_dir)
                             p.mkdir(parents=True)
+
                         # elements_doc[i].click()
                         WebDriverWait(driver, 10).until(
                             EC.element_to_be_clickable(elements_doc[i])
@@ -354,7 +358,7 @@ class Scrapper:
                             f.write(str(attributeValue_link))
 
                         f.close()
-                        temp_downloads_dir = default_temp_download_folder
+
                         timeout_time = (
                             10  # wait at max 10 seconds for a file to download
                         )
@@ -362,16 +366,20 @@ class Scrapper:
 
                         file_names = os.listdir(temp_downloads_dir)
                         if len(file_names) > 0:
-                            temp_file_path = os.path.join(
-                                temp_downloads_dir, file_names[0]
-                            )
-                            shutil.move(temp_file_path, target_download_dir)
-                            logger.info(f"{file_names[0]} downloaded")
+                            if not file_names[0].endswith(".part"):
+                                temp_file_path = os.path.join(
+                                    temp_downloads_dir, file_names[0]
+                                )
+                                shutil.move(temp_file_path, target_download_dir)
 
                         else:
                             logger.info("file not downloaded, will retry")
                             success = self.retry_download(
-                                elements_doc[i], 4, target_download_dir, driver
+                                elements_doc[i],
+                                4,
+                                target_download_dir,
+                                temp_downloads_dir,
+                                driver,
                             )
 
                             if not success:
@@ -385,7 +393,7 @@ class Scrapper:
                 StaleElementReferenceException,
                 WebDriverException,
             ) as e:
-                logger.error(
+                logger.warning(
                     f"Error occurred in getting links of download files, restarting scraping from the current file "
                     f"number:\n: {e}"
                 )
@@ -394,7 +402,6 @@ class Scrapper:
             finally:
                 element_back = "https://cej.pj.gob.pe/cej/forms/resumenform.html"
                 driver.get(element_back)
-
         return table_html, case_names_list, no_files_flag
 
     # This function saves the extracted data in CSV format
@@ -411,7 +418,7 @@ class Scrapper:
     # For entering the site and scraping everything inside
     # This is the master function
     # Please do not tamper with the sleep timers anywhere in this code
-    def scraper(self, file_num, list_comb, driver, year):
+    def scraper(self, file_num, list_comb, driver, year, temp_downloads_dir):
         driver.get(LINK)
         # driver.maximize_window()
         # wait 10 seconds before looking for element
@@ -523,15 +530,21 @@ class Scrapper:
                     Path(path).mkdir(parents=True)
                 try:
                     logger.info(f"processing file_num: {file_num} for {list_comb}")
-                    table_html, case_names_list, no_files = self.scrape_data(driver)
+                    table_html, case_names_list, no_files = self.scrape_data(
+                        driver, temp_downloads_dir, list_comb[0]
+                    )
                 except RuntimeError:
-                    return self.scraper(file_num, list_comb, driver, year)
+                    return self.scraper(
+                        file_num, list_comb, driver, year, temp_downloads_dir
+                    )
 
                 if table_html is None and case_names_list is None:
                     logger.warning(
                         f"Failed to click form button, restarting file_num {file_num}"
                     )
-                    return self.scraper(file_num, list_comb, driver, year)
+                    return self.scraper(
+                        file_num, list_comb, driver, year, temp_downloads_dir
+                    )
 
                 if no_files:
                     logger.info("NO MORE FILES, DELAYED ERROR")
@@ -547,26 +560,36 @@ class Scrapper:
                 logger.info(f"NO MORE FILES for {list_comb}")
                 return DONE_FLAG
         except Exception as e:
-            logger.error({"Scrapper func error": e})
+
             if isinstance(e, KeyboardInterrupt) or isinstance(
                 e, urllib3.exceptions.MaxRetryError
             ):
                 stop_event.set()
+            elif isinstance(e, PermissionError):
+                logger.warning(
+                    f"restarting scraping from the current file number due to PermissionError"
+                )
+                return self.scraper(
+                    file_num, list_comb, driver, year, temp_downloads_dir
+                )
+            else:
+                logger.error(f"Scrapper func error: {e}")
+                logger.error(f"{file_num, list_comb}")
 
-    def retry_download(self, link_el, max_tries, target_download_dir, driver):
+    def retry_download(
+        self, link_el, max_tries, target_download_dir, temp_downloads_dir, driver
+    ):
         tries = 1
         timeout_time = 10  # wait at max 10 seconds for a file to download
         success = False
 
         while tries < max_tries and not success:
             link_el.click()
-            download_wait(default_temp_download_folder, timeout_time, driver, False)
-            file_names = os.listdir(default_temp_download_folder)
+            download_wait(temp_downloads_dir, timeout_time, driver, False)
+            file_names = os.listdir(temp_downloads_dir)
 
             if len(file_names) > 0:
-                temp_file_path = os.path.join(
-                    default_temp_download_folder, file_names[0]
-                )
+                temp_file_path = os.path.join(temp_downloads_dir, file_names[0])
                 shutil.move(temp_file_path, target_download_dir)
                 logger.info("downloaded on try : " + str(tries))
                 success = True
@@ -585,18 +608,22 @@ class Scrapper:
 
     def scrape_for_each_comb(self, list_comb, year, parent_raw_html_directory):
 
-        if stop_event.is_set():
-            logger.warning(
-                f"Skipping processing of {year} {list_comb} due to KeyboardInterrupt"
-            )
-        else:
+        if not stop_event.is_set():
             logger.info(f"Start processing {year} {list_comb}")
+
         file_number = (
             1  # reset case number to start from 1 for each location-court-type combo
         )
         flag = ""
         empty_num = 0
-        web_driver = setup_browser_driver(default_temp_download_folder)
+        temp_downloads_dir = os.path.join(
+            default_temp_download_folder, "_".join(list_comb)
+        )
+        if not os.path.exists(temp_downloads_dir):
+            p = Path(temp_downloads_dir)
+            p.mkdir(parents=True)
+
+        web_driver = setup_browser_driver(temp_downloads_dir)
         drivers.append(web_driver)
 
         while flag != DONE_FLAG and empty_num < 5 and not stop_event.is_set():
@@ -607,7 +634,9 @@ class Scrapper:
                 file_number = file_number + 1
                 continue
 
-            flag = self.scraper(file_number, list_comb, web_driver, year)
+            flag = self.scraper(
+                file_number, list_comb, web_driver, year, temp_downloads_dir
+            )
             logger.info(f"{list_comb} file no {file_number}'s flag: {flag}")
             if flag == "NO MORE FILES, DELAYED ERROR":
                 empty_num = empty_num + 1
@@ -618,6 +647,10 @@ class Scrapper:
                 )
             file_number = file_number + 1
         web_driver.quit()
+
+        if not os.listdir(temp_downloads_dir):  # delete temp folder
+            os.rmdir(temp_downloads_dir)
+
         mark_combo_done(list_comb, parent_raw_html_directory)
         return f"Done processing {year} {list_comb}"
 
@@ -645,7 +678,8 @@ def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
 
             semaphore.release()
             logger.info(f"released semaphore")
-    except (Exception, KeyboardInterrupt) as e:
+    except KeyboardInterrupt as e:
+        logger.error(f"worker error: {e}")
         stop_event.set()
 
 
