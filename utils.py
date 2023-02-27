@@ -1,11 +1,13 @@
 import os
 from pathlib import Path
 from random import uniform
+import shutil
 import subprocess
 import sys
 import time
 import coloredlogs
 import logging
+import psutil
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.common.exceptions import (
@@ -16,9 +18,6 @@ from selenium.common.exceptions import (
 )
 from selenium.webdriver.firefox.options import Options as firefox_options
 from selenium.webdriver.firefox.service import Service as FirefoxService
-from selenium.webdriver.common.proxy import Proxy, ProxyType
-
-from proxies import PROXY
 
 load_dotenv()
 logging.basicConfig(
@@ -27,23 +26,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 coloredlogs.install(logger=logger)
 
-BROWSER_DRIVER_PATH = os.getenv(
-    r"BROWSER_DRIVER_PATH"
-)
-FIREFOX_EXECUTABLE_PATH = os.getenv(
-    r"FIREFOX_EXECUTABLE_PATH"
-)
-
-index = int(uniform(0, len(PROXY)))
-PROXY = PROXY[index]["host"] + ":" + str(PROXY[index]["port"])
+BROWSER_DRIVER_PATH = os.getenv(r"BROWSER_DRIVER_PATH")
+FIREFOX_EXECUTABLE_PATH = os.getenv(r"FIREFOX_EXECUTABLE_PATH")
 
 
 def get_firefox_options(download_path, is_headless):
     options = firefox_options()
     if is_headless:
-        options.add_argument('-headless')
-        
-    options.binary_location =  FIREFOX_EXECUTABLE_PATH
+        options.add_argument("-headless")
+
+    options.binary_location = FIREFOX_EXECUTABLE_PATH
 
     if not os.path.exists(download_path):
         d_path = Path(download_path)
@@ -58,62 +50,51 @@ def get_firefox_options(download_path, is_headless):
 
 def set_up_firefox_profile():
     profile = webdriver.FirefoxProfile()
-    profile._install_extension(
-        os.path.join(
-            os.path.realpath(os.path.dirname(__file__)),
-            "buster_captcha_solver_for_humans-0.7.2-an+fx.xpi",
-        ),
-        unpack=False,
-    )
     profile.set_preference("security.fileuri.strict_origin_policy", False)
     profile.update_preferences()
     return profile
 
 
-def set_up_proxy():
-    proxy = {
-        "proxyType": ProxyType.MANUAL,
-        "httpProxy": PROXY,
-        "sslProxy": PROXY,
-    }
-    return proxy
-
-
 def setup_browser_driver(download_path, is_headless=True, is_proxy=False):
     if not BROWSER_DRIVER_PATH or not FIREFOX_EXECUTABLE_PATH:
-        logger.error("The following env are requied: BROWSER_DRIVER_PATH, FIREFOX_EXECUTABLE_PATH")
+        logger.error(
+            "The following env are requied: BROWSER_DRIVER_PATH, FIREFOX_EXECUTABLE_PATH"
+        )
     service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
     service_object.start()
 
     driver = webdriver.Firefox(
         options=get_firefox_options(download_path, is_headless),
         firefox_profile=set_up_firefox_profile(),
-        proxy=set_up_proxy() if is_proxy else None
     )
-    
+
     return driver
 
 
+def is_windows_process_running(process_name):
+    for proc in psutil.process_iter(["name"]):
+        if proc.info["name"] == process_name:
+            return True
+    return False
+
+
 def kill_os_process(process):
-   
+
     try:
-        if sys.platform.startswith('linux'):
-            subprocess.run(["pkill", "firefox"])
-        elif sys.platform.startswith('win32'):
-            os.system(f"taskkill /F /IM {process}.exe")
+        if sys.platform.startswith("linux"):
+            subprocess.run(["pkill", process])
+        elif sys.platform.startswith("win32"):
+            if is_windows_process_running(f"{process}.exe"):
+                os.system(f"taskkill /F /IM {process}.exe")
         else:
             pass
-    except Exception as e:
-        logger.error(f"kill error {e}")
+    except Exception:
         pass
 
 
 def signal_handler(signal, frame):
-    global IS_QUIT_FLAG
-    IS_QUIT_FLAG = True
     logger.warning("signal handler called")
     kill_os_process("firefox")
-    kill_os_process("geckodriver")
 
 
 def download_wait(directory, timeout, driver, nfiles=False):
@@ -168,3 +149,23 @@ def is_element_present(by, value, driver):
     ):
         return False
     return True
+
+
+def cleat_temp_folder(temp_folder_path):
+    # delete all the files in the folder
+    for filename in os.listdir(temp_folder_path):
+        file_path = os.path.join(temp_folder_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print(f"Failed to delete {file_path}. Reason: {e}")
+
+    # delete all the subfolders in the folder
+    for subfolder_name in os.listdir(temp_folder_path):
+        subfolder_path = os.path.join(temp_folder_path, subfolder_name)
+        try:
+            if os.path.isdir(subfolder_path):
+                shutil.rmtree(subfolder_path)
+        except Exception as e:
+            print(f"Failed to delete {subfolder_path}. Reason: {e}")
