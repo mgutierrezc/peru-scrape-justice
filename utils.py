@@ -92,11 +92,6 @@ def kill_os_process(process):
         pass
 
 
-def signal_handler(signal, frame):
-    logger.warning("signal handler called")
-    kill_os_process("firefox")
-
-
 def download_wait(directory, timeout, driver, nfiles=False):
     """
     Wait for downloads to finish with a specified timeout.
