@@ -35,6 +35,7 @@ BROWSER_EXECUTABLE_PATH = os.getenv(r"BROWSER_EXECUTABLE_PATH")
 CHROME_BROWSER_TYPE = "chrome"
 FIREFOX_BROWSER_TYPE = "firefox"
 
+
 def get_FirefoxOptions(download_path, is_headless):
     options = FirefoxOptions()
     if is_headless:
@@ -59,35 +60,48 @@ def set_up_firefox_profile():
     profile.update_preferences()
     return profile
 
+
 def get_chrome_options(download_path, is_headless):
     chrome_options = ChromeOptions()
     if is_headless:
-        chrome_options.add_argument('--headless')
-   
-    chrome_options.add_argument('--ignore-certificate-errors')
+        chrome_options.add_argument("--headless")
+
+    chrome_options.add_argument("--ignore-certificate-errors")
     chrome_options.add_argument("--test-type")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
-    # chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"]) # comment to enable devtools logs
-    prefs = {"download.default_directory": download_path}
+    chrome_options.add_experimental_option(
+        "excludeSwitches", ["enable-logging"]
+    )  # comment to enable devtools logs
+    prefs = {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": False,
+        "safebrowsing.disable_download_protection": True,
+    }
     chrome_options.add_experimental_option("prefs", prefs)
     return chrome_options
 
-def setup_selenium_browser_driver(download_path, is_headless=True, browser_type=CHROME_BROWSER_TYPE):
-    
+
+def setup_selenium_browser_driver(
+    download_path, is_headless=True, browser_type=CHROME_BROWSER_TYPE
+):
+
     if browser_type == CHROME_BROWSER_TYPE:
         if not BROWSER_DRIVER_PATH:
-            logger.error(
-                "The following env are requied: BROWSER_DRIVER_PATH"
-            )
+            logger.error("The following env are requied: BROWSER_DRIVER_PATH")
             sys.exit()
-        driver = webdriver.Chrome(executable_path=BROWSER_DRIVER_PATH, options=get_chrome_options(download_path,is_headless))
-    else:  
+        driver = webdriver.Chrome(
+            executable_path=BROWSER_DRIVER_PATH,
+            options=get_chrome_options(download_path, is_headless),
+        )
+    else:
         if not BROWSER_DRIVER_PATH or not BROWSER_EXECUTABLE_PATH:
             logger.error(
                 "The following env are requied: BROWSER_DRIVER_PATH, BROWSER_EXECUTABLE_PATH"
-            )      
+            )
             sys.exit()
         logger.info("Terminating previous firefox processes..")
         service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
@@ -120,14 +134,16 @@ def kill_os_process(process):
     except Exception:
         pass
 
+
 def kill_web_drivers(drivers):
     try:
         for driver in drivers:
             driver.close()
-            driver.result().quit()
+            driver.quit()
     except Exception as e:
-        print(e)
-    
+        pass
+
+
 def download_wait(directory, timeout, driver, nfiles=False):
     """
     Wait for downloads to finish with a specified timeout.
@@ -153,7 +169,7 @@ def download_wait(directory, timeout, driver, nfiles=False):
                 dl_wait = True
 
         for fname in files:
-            if fname.endswith('.crdownload'):
+            if fname.endswith(".crdownload"):
                 dl_wait = True
 
         seconds += 1

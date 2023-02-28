@@ -202,10 +202,19 @@ def is_combo_done(combo, parent_dir):
 def mark_year_done(year):
     Path(get_year_done_filename(year)).touch()
 
+
 def enable_download_in_headless_chrome(driver, download_dir):
-    driver.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
-    params = {'cmd':'Page.setDownloadBehavior', 'params': {'behavior': 'allow', 'downloadPath': download_dir}}
+    driver.command_executor._commands["send_command"] = (
+        "POST",
+        "/session/$sessionId/chromium/send_command",
+    )
+    params = {
+        "cmd": "Page.setDownloadBehavior",
+        "params": {"behavior": "allow", "downloadPath": download_dir},
+    }
     driver.execute("send_command", params)
+
+
 class Scrapper:
     def __init__(self) -> None:
         pass
@@ -361,36 +370,28 @@ class Scrapper:
                         # WebDriverWait(driver, 30).until(
                         #     EC.element_to_be_clickable(elements_doc[i])
                         # ).click()
-                       
+
                         driver.get(attributeValue_link)
-                
 
                         link_path = target_download_dir + "/link.txt"
                         with open(link_path, "w+") as f:
                             f.write(str(attributeValue_link))
 
                         f.close()
-                        
-                        start_time = time.time()
 
                         timeout_time = (
                             10  # wait at max 10 seconds for a file to download
                         )
                         download_wait(temp_downloads_dir, timeout_time, driver, False)
-                        
-                        end_time = time.time()
-                        elapsed_time = end_time - start_time
-                        print("The script took", elapsed_time, "seconds to complete.")
-                        
+
                         file_names = os.listdir(temp_downloads_dir)
-                        print(f"file_names {len(file_names)}")
                         if len(file_names) > 0:
                             temp_file_path = os.path.join(
-                                    temp_downloads_dir, file_names[0]
-                                )
+                                temp_downloads_dir, file_names[0]
+                            )
                             shutil.move(temp_file_path, target_download_dir)
                             logger.info(f"{file_names[0]} downloaded")
-                                
+
                         else:
                             logger.info("file not downloaded, will retry")
                             success = self.retry_download(
@@ -595,8 +596,7 @@ class Scrapper:
                 logger.info(f"NO MORE FILES for {list_comb}")
                 return DONE_FLAG
         except Exception as e:
-            if isinstance(e, KeyboardInterrupt) or isinstance(e, urllib3.connectionpool.MaxRetryError):
-                driver.quit()
+            if isinstance(e, KeyboardInterrupt):
                 handle_keyboard_cancel(None, None)
             elif isinstance(e, PermissionError):
                 logger.warning(
@@ -605,12 +605,13 @@ class Scrapper:
                 return self.scraper(
                     file_num, list_comb, driver, year, temp_downloads_dir
                 )
+            elif  isinstance(e, urllib3.connectionpool.MaxRetryError):
+                print(f"Max retries exceeded: {e.max_retries}")
             else:
                 failed_file = f"{year}-{'-'.join(list_comb)}-{file_num}"
                 faulty_downloads_path = os.path.join(
-                    faulty_downloads_dir,
-                    f"{failed_file}.txt"
-                    ) 
+                    faulty_downloads_dir, f"{failed_file}.txt"
+                )
                 Path(faulty_downloads_path).touch()
 
     def retry_download(
@@ -700,7 +701,6 @@ def handle_keyboard_cancel(signal, frame):
     # Handle the keyboard interrupt signal by setting the global flag
     global stop_threads
     stop_threads = True
-    kill_web_drivers(drivers)
     os._exit(1)
 
 
@@ -734,42 +734,45 @@ if __name__ == "__main__":
             if NUMBER_OF_WORKERS <= len(locations_to_use)
             else NUMBER_OF_WORKERS - (NUMBER_OF_WORKERS - len(locations_to_use))
         )
-
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for location_list in locations_to_use:
+                parent_raw_html_dir = get_parent_raw_html_dir(scrape_year)
+
+                if is_combo_done(location_list, parent_raw_html_dir):
+                    logger.info(
+                        f"Skipping {scrape_year} {location_list} as it is already done"
+                    )
+                    continue
+
+                if locations and location_list[0] not in locations:
+                    continue
+
+                if location_list[0] not in valid_locations:
+                    logger.warning(
+                        f"Skipping {location_list} as {location_list[0]} is not found in the current location dropdown menu"
+                    )
+                    continue
+
+                scrapper_thread = Scrapper()
+                threads.append(
+                    executor.submit(
+                        scrapper_thread.scrape_for_each_comb,
+                        location_list,
+                        scrape_year,
+                        parent_raw_html_dir,
+                    )
+                )
             try:
-                for location_list in locations_to_use:
-                    if not stop_threads:
-                        parent_raw_html_dir = get_parent_raw_html_dir(scrape_year)
 
-                        if is_combo_done(location_list, parent_raw_html_dir):
-                            logger.info(
-                                f"Skipping {scrape_year} {location_list} as it is already done"
-                            )
-                            continue
-
-                        if locations and location_list[0] not in locations:
-                            continue
-
-                        if location_list[0] not in valid_locations:
-                            logger.warning(
-                                f"Skipping {location_list} as {location_list[0]} is not found in the current location dropdown menu"
-                            )
-                            continue
-
-                        scrapper_thread = Scrapper()
-                        threads.append(
-                            executor.submit(
-                                scrapper_thread.scrape_for_each_comb,
-                                location_list,
-                                scrape_year,
-                                parent_raw_html_dir,
-                            )
-                        )
-                for thread in concurrent.futures.as_completed(threads):
-                    thread.result()
+                while not stop_threads:
+                    for thread in concurrent.futures.as_completed(threads):
+                        thread.result()
             except KeyboardInterrupt:
                 executor.shutdown(wait=False)
                 handle_keyboard_cancel(None, None)
 
     if not locations and not stop_threads:
         mark_year_done(scrape_year)
+
+    kill_web_drivers(drivers)
+
