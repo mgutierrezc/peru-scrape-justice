@@ -77,6 +77,7 @@ def get_chrome_options(download_path, is_headless):
     chrome_options.add_argument("--disable-features=NetworkService")
     chrome_options.add_argument("--window-size=1920x1080")
     chrome_options.add_argument("--disable-features=RendererCodeIntegrity")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"]) # comment to enable devtools logs
     prefs = {"download.default_directory": download_path}
     chrome_options.add_experimental_option("prefs", prefs)
     return chrome_options
@@ -89,7 +90,7 @@ def setup_selenium_browser_driver(download_path, is_headless=True, browser_type=
                 "The following env are requied: BROWSER_DRIVER_PATH"
             )
             sys.exit()
-      
+        kill_os_process("chromedriver")
         driver = webdriver.Chrome(executable_path=BROWSER_DRIVER_PATH, options=get_chrome_options(download_path,is_headless))
     else:  
         if not BROWSER_DRIVER_PATH or not BROWSER_EXECUTABLE_PATH:
@@ -130,12 +131,12 @@ def kill_os_process(process):
         pass
 
 def kill_web_drivers(drivers):
-
     try:
         for driver in drivers:
             driver.quit()
-    except Exception:
-        pass
+            print("driver killed")
+    except Exception as e:
+        print(e)
     
 def download_wait(directory, timeout, driver, nfiles=False):
     """
@@ -162,7 +163,7 @@ def download_wait(directory, timeout, driver, nfiles=False):
                 dl_wait = True
 
         for fname in files:
-            if fname.endswith(".part"):
+            if fname.endswith(".crdownload"):
                 dl_wait = True
 
         seconds += 1

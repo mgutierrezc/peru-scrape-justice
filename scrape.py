@@ -139,6 +139,7 @@ def get_latest_locations():
     clear_temp_folder(default_temp_download_folder)
 
     try:
+        logger.info("getting latest locations...")
         driver = setup_selenium_browser_driver(default_temp_download_folder)
         driver.get(LINK)
         loc_dropdown = Select(driver.find_element(By.ID, "distritoJudicial"))
@@ -215,6 +216,8 @@ class Scrapper:
     def scrape_data(
         self, driver, temp_downloads_dir, location_name
     ):  # to scrape the insides of the site
+        print("to scrape the insides of the site")
+        time.sleep(2)
         button_list = []  # To scrape the button type links of the documents
         try:
             button_list = driver.find_elements(
@@ -355,10 +358,10 @@ class Scrapper:
                             p.mkdir(parents=True)
 
                         # elements_doc[i].click()
-                        WebDriverWait(driver, 10).until(
-                            EC.element_to_be_clickable(elements_doc[i])
-                        ).click()
-                        # driver.get(attributeValue_link)
+                        # WebDriverWait(driver, 20).until(
+                        #     EC.element_to_be_clickable(elements_doc[i])
+                        # ).click()
+                        driver.get(attributeValue_link)
 
                         link_path = target_download_dir + "/link.txt"
                         with open(link_path, "w+") as f:
@@ -373,7 +376,7 @@ class Scrapper:
 
                         file_names = os.listdir(temp_downloads_dir)
                         if len(file_names) > 0:
-                            if not file_names[0].endswith(".part"):
+                            if not file_names[0].endswith(".crdownload"):
                                 temp_file_path = os.path.join(
                                     temp_downloads_dir, file_names[0]
                                 )
@@ -400,11 +403,14 @@ class Scrapper:
                 StaleElementReferenceException,
                 WebDriverException,
             ) as e:
+                print(isinstance(e,TimeoutException))
+                print(isinstance(e,StaleElementReferenceException))
+                print(isinstance(e,WebDriverException))
                 logger.warning(
                     f"Error occurred in getting links of download files, restarting scraping from the current file "
                     f"number:\n: {e}"
                 )
-                # raise RuntimeError("Error Occurred")
+                raise RuntimeError("Error Occurred")
 
             finally:
                 element_back = "https://cej.pj.gob.pe/cej/forms/resumenform.html"
@@ -629,7 +635,7 @@ class Scrapper:
             p = Path(temp_downloads_dir)
             p.mkdir(parents=True)
 
-        web_driver = setup_selenium_browser_driver(temp_downloads_dir)
+        web_driver = setup_selenium_browser_driver(temp_downloads_dir, is_headless=False)
         drivers.append(web_driver)
 
         while flag != DONE_FLAG and empty_num < 5 and not stop_event.is_set():
@@ -663,11 +669,11 @@ class Scrapper:
 
 def keyboard_cancle(signal, frame):
     logger.warning("Received Ctrl-C. Stopping threads...")
+    kill_web_drivers(drivers)
     stop_event.set()
+    for t in threads:
+        t.join()
     sys.exit(0)
-
-
-signal.signal(signal.SIGINT, keyboard_cancle)
 
 
 def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
@@ -694,6 +700,8 @@ def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
         sys.exit(0)
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, keyboard_cancle)
+
     locations, years = parse_args()
     valid_locations = get_latest_locations()
     logger.info(
@@ -766,3 +774,5 @@ if __name__ == "__main__":
 
     if not locations and not stop_event.is_set():
         mark_year_done(scrape_year)
+    
+    kill_web_drivers(drivers)
