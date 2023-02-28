@@ -16,8 +16,10 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
     WebDriverException,
 )
-from selenium.webdriver.firefox.options import Options as firefox_options
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+
 
 load_dotenv()
 logging.basicConfig(
@@ -27,15 +29,17 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(logger=logger)
 
 BROWSER_DRIVER_PATH = os.getenv(r"BROWSER_DRIVER_PATH")
-FIREFOX_EXECUTABLE_PATH = os.getenv(r"FIREFOX_EXECUTABLE_PATH")
+BROWSER_EXECUTABLE_PATH = os.getenv(r"BROWSER_EXECUTABLE_PATH")
 
+CHROME_BROWSER_TYPE = "chrome"
+FIREFOX_BROWSER_TYPE = "firefox"
 
-def get_firefox_options(download_path, is_headless):
-    options = firefox_options()
+def get_FirefoxOptions(download_path, is_headless):
+    options = FirefoxOptions()
     if is_headless:
         options.add_argument("-headless")
 
-    options.binary_location = FIREFOX_EXECUTABLE_PATH
+    options.binary_location = BROWSER_EXECUTABLE_PATH
 
     if not os.path.exists(download_path):
         d_path = Path(download_path)
@@ -54,19 +58,53 @@ def set_up_firefox_profile():
     profile.update_preferences()
     return profile
 
+def get_chrome_options(download_path, is_headless):
+    chrome_options = ChromeOptions()
+    if is_headless:
+        chrome_options.add_argument('--headless')
+   
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--disable-browser-side-navigation")
+    chrome_options.add_argument("--disable-infobars")
+    chrome_options.add_argument("--disable-popup-blocking")
+    chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("--disable-default-apps")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-features=site-per-process")
+    chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+    chrome_options.add_argument("--disable-features=NetworkService")
+    chrome_options.add_argument("--window-size=1920x1080")
+    chrome_options.add_argument("--disable-features=RendererCodeIntegrity")
+    prefs = {"download.default_directory": download_path}
+    chrome_options.add_experimental_option("prefs", prefs)
+    return chrome_options
 
-def setup_browser_driver(download_path, is_headless=True, is_proxy=False):
-    if not BROWSER_DRIVER_PATH or not FIREFOX_EXECUTABLE_PATH:
-        logger.error(
-            "The following env are requied: BROWSER_DRIVER_PATH, FIREFOX_EXECUTABLE_PATH"
+def setup_selenium_browser_driver(download_path, is_headless=True, browser_type=CHROME_BROWSER_TYPE):
+    
+    if browser_type == CHROME_BROWSER_TYPE:
+        if not BROWSER_DRIVER_PATH:
+            logger.error(
+                "The following env are requied: BROWSER_DRIVER_PATH"
+            )
+            sys.exit()
+      
+        driver = webdriver.Chrome(executable_path=BROWSER_DRIVER_PATH, options=get_chrome_options(download_path,is_headless))
+    else:  
+        if not BROWSER_DRIVER_PATH or not BROWSER_EXECUTABLE_PATH:
+            logger.error(
+                "The following env are requied: BROWSER_DRIVER_PATH, BROWSER_EXECUTABLE_PATH"
+            )      
+            sys.exit()
+        logger.info("Terminating previous firefox processes..")
+        kill_os_process("firefox")  
+        service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
+        service_object.start()
+        driver = webdriver.Firefox(
+            options=get_FirefoxOptions(download_path, is_headless),
+            firefox_profile=set_up_firefox_profile(),
         )
-    service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
-    service_object.start()
-
-    driver = webdriver.Firefox(
-        options=get_firefox_options(download_path, is_headless),
-        firefox_profile=set_up_firefox_profile(),
-    )
 
     return driver
 
@@ -91,7 +129,14 @@ def kill_os_process(process):
     except Exception:
         pass
 
+def kill_web_drivers(drivers):
 
+    try:
+        for driver in drivers:
+            driver.quit()
+    except Exception:
+        pass
+    
 def download_wait(directory, timeout, driver, nfiles=False):
     """
     Wait for downloads to finish with a specified timeout.
@@ -146,7 +191,7 @@ def is_element_present(by, value, driver):
     return True
 
 
-def cleat_temp_folder(temp_folder_path):
+def clear_temp_folder(temp_folder_path):
     # delete all the files in the folder
     for filename in os.listdir(temp_folder_path):
         file_path = os.path.join(temp_folder_path, filename)

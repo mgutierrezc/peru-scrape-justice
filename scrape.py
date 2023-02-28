@@ -29,9 +29,9 @@ from constants import list_all_comb
 from utils import (
     download_wait,
     is_element_present,
-    setup_browser_driver,
-    kill_os_process,
-    cleat_temp_folder,
+    setup_selenium_browser_driver,
+    kill_web_drivers,
+    clear_temp_folder,
     logger,
 )
 
@@ -136,11 +136,10 @@ def parse_args():
 
 
 def get_latest_locations():
-    cleat_temp_folder(default_temp_download_folder)
-    logger.info("Terminating previous firefox processes..")
-    kill_os_process("firefox")
+    clear_temp_folder(default_temp_download_folder)
+
     try:
-        driver = setup_browser_driver(default_temp_download_folder)
+        driver = setup_selenium_browser_driver(default_temp_download_folder)
         driver.get(LINK)
         loc_dropdown = Select(driver.find_element(By.ID, "distritoJudicial"))
         locations = set(option.text for option in loc_dropdown.options)
@@ -170,7 +169,7 @@ def get_year_done_filename(year):
 
 
 def get_all_valid_years():
-    driver = setup_browser_driver(default_temp_download_folder)
+    driver = setup_selenium_browser_driver(default_temp_download_folder)
     driver.get(LINK)
     element = WebDriverWait(driver, 10).until(
         EC.text_to_be_present_in_element((By.ID, "anio"), PLACEHOLDER_TEXT)
@@ -630,7 +629,7 @@ class Scrapper:
             p = Path(temp_downloads_dir)
             p.mkdir(parents=True)
 
-        web_driver = setup_browser_driver(temp_downloads_dir)
+        web_driver = setup_selenium_browser_driver(temp_downloads_dir)
         drivers.append(web_driver)
 
         while flag != DONE_FLAG and empty_num < 5 and not stop_event.is_set():
@@ -665,7 +664,6 @@ class Scrapper:
 def keyboard_cancle(signal, frame):
     logger.warning("Received Ctrl-C. Stopping threads...")
     stop_event.set()
-    kill_os_process("firefox")
     sys.exit(0)
 
 
@@ -684,7 +682,7 @@ def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
                 )
             except urllib3.exceptions.ProtocolError as e:
                 stop_event.set()
-                kill_os_process("firefox")
+                kill_web_drivers(drivers)
                 sys.exit(0)
 
             semaphore.release()
@@ -692,7 +690,7 @@ def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
     except KeyboardInterrupt as e:
         logger.error(f"worker error: {e}")
         stop_event.set()
-        kill_os_process("firefox")
+        kill_web_drivers(drivers)
         sys.exit(0)
 
 if __name__ == "__main__":
@@ -755,7 +753,7 @@ if __name__ == "__main__":
             message = template.format(type(e).__name__, e.args)
             logger.error(f"pool error: {message}")
             stop_event.set()
-            kill_os_process("firefox")
+            kill_web_drivers(drivers)
             sys.exit(0)
 
     # Start all threads at the same time
