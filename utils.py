@@ -19,6 +19,7 @@ from selenium.common.exceptions import (
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+import urllib3
 
 
 load_dotenv()
@@ -63,21 +64,12 @@ def get_chrome_options(download_path, is_headless):
     if is_headless:
         chrome_options.add_argument('--headless')
    
+    chrome_options.add_argument('--ignore-certificate-errors')
+    chrome_options.add_argument("--test-type")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--disable-browser-side-navigation")
-    chrome_options.add_argument("--disable-infobars")
-    chrome_options.add_argument("--disable-popup-blocking")
-    chrome_options.add_argument("--disable-notifications")
-    chrome_options.add_argument("--disable-default-apps")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-features=site-per-process")
-    chrome_options.add_argument("--disable-features=VizDisplayCompositor")
-    chrome_options.add_argument("--disable-features=NetworkService")
-    chrome_options.add_argument("--window-size=1920x1080")
-    chrome_options.add_argument("--disable-features=RendererCodeIntegrity")
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"]) # comment to enable devtools logs
+
+    # chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"]) # comment to enable devtools logs
     prefs = {"download.default_directory": download_path}
     chrome_options.add_experimental_option("prefs", prefs)
     return chrome_options
@@ -90,7 +82,6 @@ def setup_selenium_browser_driver(download_path, is_headless=True, browser_type=
                 "The following env are requied: BROWSER_DRIVER_PATH"
             )
             sys.exit()
-        kill_os_process("chromedriver")
         driver = webdriver.Chrome(executable_path=BROWSER_DRIVER_PATH, options=get_chrome_options(download_path,is_headless))
     else:  
         if not BROWSER_DRIVER_PATH or not BROWSER_EXECUTABLE_PATH:
@@ -99,7 +90,6 @@ def setup_selenium_browser_driver(download_path, is_headless=True, browser_type=
             )      
             sys.exit()
         logger.info("Terminating previous firefox processes..")
-        kill_os_process("firefox")  
         service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
         service_object.start()
         driver = webdriver.Firefox(
@@ -133,8 +123,8 @@ def kill_os_process(process):
 def kill_web_drivers(drivers):
     try:
         for driver in drivers:
-            driver.quit()
-            print("driver killed")
+            driver.close()
+            driver.result().quit()
     except Exception as e:
         print(e)
     
@@ -163,17 +153,10 @@ def download_wait(directory, timeout, driver, nfiles=False):
                 dl_wait = True
 
         for fname in files:
-            if fname.endswith(".crdownload"):
+            if fname.endswith('.crdownload'):
                 dl_wait = True
 
         seconds += 1
-
-    tabs = driver.window_handles
-    if len(tabs) > 1:
-        driver.switch_to.window(tabs[1])
-        driver.close()
-        driver.switch_to.window(tabs[0])
-
     return seconds
 
 

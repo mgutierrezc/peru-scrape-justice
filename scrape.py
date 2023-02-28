@@ -1,16 +1,19 @@
 import argparse
 import datetime
 import functools
+from lib2to3.pytree import Node
 import os
 import shutil
 import signal
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
 from pathlib import Path
 
 from dotenv import load_dotenv
+import psutil
+from requests import HTTPError, Timeout
 from selenium.common.exceptions import (
     NoSuchElementException,
     TimeoutException,
@@ -29,6 +32,7 @@ from constants import list_all_comb
 from utils import (
     download_wait,
     is_element_present,
+    kill_os_process,
     setup_selenium_browser_driver,
     kill_web_drivers,
     clear_temp_folder,
@@ -58,13 +62,14 @@ if not os.path.exists(faulty_downloads_dir):
 if not os.path.exists(default_temp_download_folder):
     p = Path(default_temp_download_folder)
     p.mkdir(parents=True)
-    
+
 if not os.path.exists(final_data_folder):
     p = Path(final_data_folder)
     p.mkdir(parents=True)
-    
-NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS", 10))
+
+NUMBER_OF_WORKERS = int(os.getenv("NUMBER_OF_WORKERS", 5))
 drivers = []
+stop_threads = False
 threads = []
 global_executor = None
 
@@ -137,7 +142,6 @@ def parse_args():
 
 def get_latest_locations():
     clear_temp_folder(default_temp_download_folder)
-
     try:
         logger.info("getting latest locations...")
         driver = setup_selenium_browser_driver(default_temp_download_folder)
@@ -155,7 +159,7 @@ def get_latest_locations():
         WebDriverException,
     ) as e:
         logger.error(e)
-        exit(2)
+        os._exit(2)
 
 
 def get_done_filename(combo, file_num=None):
@@ -198,11 +202,10 @@ def is_combo_done(combo, parent_dir):
 def mark_year_done(year):
     Path(get_year_done_filename(year)).touch()
 
-
-# stop event
-stop_event = threading.Event()
-
-
+def enable_download_in_headless_chrome(driver, download_dir):
+    driver.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
+    params = {'cmd':'Page.setDownloadBehavior', 'params': {'behavior': 'allow', 'downloadPath': download_dir}}
+    driver.execute("send_command", params)
 class Scrapper:
     def __init__(self) -> None:
         pass
@@ -214,9 +217,8 @@ class Scrapper:
         pass
 
     def scrape_data(
-        self, driver, temp_downloads_dir, location_name
+        self, driver, temp_downloads_dir
     ):  # to scrape the insides of the site
-        print("to scrape the insides of the site")
         time.sleep(2)
         button_list = []  # To scrape the button type links of the documents
         try:
@@ -349,7 +351,6 @@ class Scrapper:
                             final_data_folder,
                             expediente_year,
                             "downloaded_files",
-                            location_name,
                             subfolder,
                         )
 
@@ -357,31 +358,39 @@ class Scrapper:
                             p = Path(target_download_dir)
                             p.mkdir(parents=True)
 
-                        # elements_doc[i].click()
-                        # WebDriverWait(driver, 20).until(
+                        # WebDriverWait(driver, 30).until(
                         #     EC.element_to_be_clickable(elements_doc[i])
                         # ).click()
+                       
                         driver.get(attributeValue_link)
+                
 
                         link_path = target_download_dir + "/link.txt"
                         with open(link_path, "w+") as f:
                             f.write(str(attributeValue_link))
 
                         f.close()
+                        
+                        start_time = time.time()
 
                         timeout_time = (
                             10  # wait at max 10 seconds for a file to download
                         )
                         download_wait(temp_downloads_dir, timeout_time, driver, False)
-
+                        
+                        end_time = time.time()
+                        elapsed_time = end_time - start_time
+                        print("The script took", elapsed_time, "seconds to complete.")
+                        
                         file_names = os.listdir(temp_downloads_dir)
+                        print(f"file_names {len(file_names)}")
                         if len(file_names) > 0:
-                            if not file_names[0].endswith(".crdownload"):
-                                temp_file_path = os.path.join(
+                            temp_file_path = os.path.join(
                                     temp_downloads_dir, file_names[0]
                                 )
-                                shutil.move(temp_file_path, target_download_dir)
-
+                            shutil.move(temp_file_path, target_download_dir)
+                            logger.info(f"{file_names[0]} downloaded")
+                                
                         else:
                             logger.info("file not downloaded, will retry")
                             success = self.retry_download(
@@ -403,12 +412,10 @@ class Scrapper:
                 StaleElementReferenceException,
                 WebDriverException,
             ) as e:
-                print(isinstance(e,TimeoutException))
-                print(isinstance(e,StaleElementReferenceException))
-                print(isinstance(e,WebDriverException))
+
                 logger.warning(
                     f"Error occurred in getting links of download files, restarting scraping from the current file "
-                    f"number:\n: {e}"
+                    f"number:\n: {e.msg}"
                 )
                 raise RuntimeError("Error Occurred")
 
@@ -432,10 +439,12 @@ class Scrapper:
     # This is the master function
     # Please do not tamper with the sleep timers anywhere in this code
     def scraper(self, file_num, list_comb, driver, year, temp_downloads_dir):
-        driver.get(LINK)
-        # driver.maximize_window()
-        # wait 10 seconds before looking for element
+
         try:
+            driver.get(LINK)
+            # driver.maximize_window()
+            # wait 10 seconds before looking for element
+
             element = WebDriverWait(driver, 10).until(
                 EC.text_to_be_present_in_element(
                     (By.ID, "distritoJudicial"), PLACEHOLDER_TEXT
@@ -484,7 +493,9 @@ class Scrapper:
             )  # Set to civil, can be changed to any other type depending on the requirements of the user
 
             # input case file num
-            inputElement = driver.find_element(By.ID, "numeroExpediente")
+            inputElement = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "numeroExpediente"))
+            )
             inputElement.send_keys(file_num)
 
             # driver.find_element_by_tag_name('body').send_keys(Keys.CONTROL + Keys.HOME)
@@ -508,6 +519,17 @@ class Scrapper:
                     else:
                         if is_element_present("id", "btnReload", driver):
                             logger.warning(f"Captcha solved incorrectly, retrying...")
+
+                            if not inputElement.get_attribute("value"):
+                                # restart scraper since input values are empty
+                                return self.scraper(
+                                    file_num,
+                                    list_comb,
+                                    driver,
+                                    year,
+                                    temp_downloads_dir,
+                                )
+
                             driver.find_element(By.ID, "btnReload").click()
                         time.sleep(3)
                 if is_element_present("id", "btnReload", driver):
@@ -544,7 +566,7 @@ class Scrapper:
                 try:
                     logger.info(f"processing file_num: {file_num} for {list_comb}")
                     table_html, case_names_list, no_files = self.scrape_data(
-                        driver, temp_downloads_dir, list_comb[0]
+                        driver, temp_downloads_dir
                     )
                 except RuntimeError:
                     return self.scraper(
@@ -573,11 +595,9 @@ class Scrapper:
                 logger.info(f"NO MORE FILES for {list_comb}")
                 return DONE_FLAG
         except Exception as e:
-
-            if isinstance(e, KeyboardInterrupt) or isinstance(
-                e, urllib3.exceptions.MaxRetryError
-            ):
-                stop_event.set()
+            if isinstance(e, KeyboardInterrupt) or isinstance(e, urllib3.connectionpool.MaxRetryError):
+                driver.quit()
+                handle_keyboard_cancel(None, None)
             elif isinstance(e, PermissionError):
                 logger.warning(
                     f"restarting scraping from the current file number due to PermissionError"
@@ -586,7 +606,12 @@ class Scrapper:
                     file_num, list_comb, driver, year, temp_downloads_dir
                 )
             else:
-                logger.error(f"Scrapper func error: {e}")
+                failed_file = f"{year}-{'-'.join(list_comb)}-{file_num}"
+                faulty_downloads_path = os.path.join(
+                    faulty_downloads_dir,
+                    f"{failed_file}.txt"
+                    ) 
+                Path(faulty_downloads_path).touch()
 
     def retry_download(
         self, link_el, max_tries, target_download_dir, temp_downloads_dir, driver
@@ -620,8 +645,10 @@ class Scrapper:
 
     def scrape_for_each_comb(self, list_comb, year, parent_raw_html_directory):
 
-        if not stop_event.is_set():
+        if not stop_threads:
             logger.info(f"Start processing {year} {list_comb}")
+        else:
+            os._exit(1)
 
         file_number = (
             1  # reset case number to start from 1 for each location-court-type combo
@@ -635,10 +662,11 @@ class Scrapper:
             p = Path(temp_downloads_dir)
             p.mkdir(parents=True)
 
-        web_driver = setup_selenium_browser_driver(temp_downloads_dir, is_headless=False)
+        web_driver = setup_selenium_browser_driver(temp_downloads_dir)
         drivers.append(web_driver)
+        enable_download_in_headless_chrome(web_driver, temp_downloads_dir)
 
-        while flag != DONE_FLAG and empty_num < 5 and not stop_event.is_set():
+        while flag != DONE_FLAG and empty_num < 5 and not stop_threads:
             if is_combo_file_num_done(
                 list_comb, file_number, parent_raw_html_directory
             ):
@@ -667,40 +695,18 @@ class Scrapper:
         return f"Done processing {year} {list_comb}"
 
 
-def keyboard_cancle(signal, frame):
-    logger.warning("Received Ctrl-C. Stopping threads...")
+def handle_keyboard_cancel(signal, frame):
+    logger.warning("Stopping threads...")
+    # Handle the keyboard interrupt signal by setting the global flag
+    global stop_threads
+    stop_threads = True
     kill_web_drivers(drivers)
-    stop_event.set()
-    for t in threads:
-        t.join()
-    sys.exit(0)
+    os._exit(1)
 
-
-def worker(semaphore, location_list, scrape_year, parent_raw_html_dir):
-    try:
-        while not stop_event.is_set():
-            semaphore.acquire()
-            logger.info(f"acquired semaphore")
-            try:
-                scrapper = Scrapper()
-                scrapper.scrape_for_each_comb(
-                    location_list, scrape_year, parent_raw_html_dir
-                )
-            except urllib3.exceptions.ProtocolError as e:
-                stop_event.set()
-                kill_web_drivers(drivers)
-                sys.exit(0)
-
-            semaphore.release()
-            logger.info(f"released semaphore")
-    except KeyboardInterrupt as e:
-        logger.error(f"worker error: {e}")
-        stop_event.set()
-        kill_web_drivers(drivers)
-        sys.exit(0)
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, keyboard_cancle)
+    # Register the keyboard interrupt signal handler
+    signal.signal(signal.SIGINT, handle_keyboard_cancel)
 
     locations, years = parse_args()
     valid_locations = get_latest_locations()
@@ -716,63 +722,54 @@ if __name__ == "__main__":
             logger.info(f"Skipping {scrape_year} as it is already done")
             continue
 
-        try:
-            locations_to_use = list_all_comb
-            if locations and len(locations) > 0:
-                locations_to_use = [
-                    x for x in list_all_comb if x[0] in locations
-                ]  # only use parsed locations
+        # try:
+        locations_to_use = list_all_comb
+        if locations and len(locations) > 0:
+            locations_to_use = [
+                x for x in list_all_comb if x[0] in locations
+            ]  # only use parsed locations
 
-            futures = []
+        max_workers = (
+            NUMBER_OF_WORKERS
+            if NUMBER_OF_WORKERS <= len(locations_to_use)
+            else NUMBER_OF_WORKERS - (NUMBER_OF_WORKERS - len(locations_to_use))
+        )
 
-            max_workers = (
-                NUMBER_OF_WORKERS
-                if NUMBER_OF_WORKERS <= len(locations_to_use)
-                else NUMBER_OF_WORKERS - (NUMBER_OF_WORKERS - len(locations_to_use))
-            )
-            # Create a semaphore with a maximum of concurrent threads
-            semaphore = threading.Semaphore(max_workers)
-            for location_list in locations_to_use:
-                parent_raw_html_dir = get_parent_raw_html_dir(scrape_year)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            try:
+                for location_list in locations_to_use:
+                    if not stop_threads:
+                        parent_raw_html_dir = get_parent_raw_html_dir(scrape_year)
 
-                if is_combo_done(location_list, parent_raw_html_dir):
-                    logger.info(
-                        f"Skipping {scrape_year} {location_list} as it is already done"
-                    )
-                    continue
+                        if is_combo_done(location_list, parent_raw_html_dir):
+                            logger.info(
+                                f"Skipping {scrape_year} {location_list} as it is already done"
+                            )
+                            continue
 
-                if locations and location_list[0] not in locations:
-                    continue
+                        if locations and location_list[0] not in locations:
+                            continue
 
-                if location_list[0] not in valid_locations:
-                    logger.warning(
-                        f"Skipping {location_list} as {location_list[0]} is not found in the current location dropdown menu"
-                    )
-                    continue
+                        if location_list[0] not in valid_locations:
+                            logger.warning(
+                                f"Skipping {location_list} as {location_list[0]} is not found in the current location dropdown menu"
+                            )
+                            continue
 
-                t = threading.Thread(
-                    target=worker,
-                    args=(semaphore, location_list, scrape_year, parent_raw_html_dir),
-                )
-                threads.append(t)
+                        scrapper_thread = Scrapper()
+                        threads.append(
+                            executor.submit(
+                                scrapper_thread.scrape_for_each_comb,
+                                location_list,
+                                scrape_year,
+                                parent_raw_html_dir,
+                            )
+                        )
+                for thread in concurrent.futures.as_completed(threads):
+                    thread.result()
+            except KeyboardInterrupt:
+                executor.shutdown(wait=False)
+                handle_keyboard_cancel(None, None)
 
-        except (Exception, KeyboardInterrupt) as e:
-            template = "An exception of type {0} occurred. Arguments:\n{1!r}"
-            message = template.format(type(e).__name__, e.args)
-            logger.error(f"pool error: {message}")
-            stop_event.set()
-            kill_web_drivers(drivers)
-            sys.exit(0)
-
-    # Start all threads at the same time
-    for t in threads:
-        t.start()
-
-    # Wait for all threads to complete
-    for t in threads:
-        t.join()
-
-    if not locations and not stop_event.is_set():
+    if not locations and not stop_threads:
         mark_year_done(scrape_year)
-    
-    kill_web_drivers(drivers)
