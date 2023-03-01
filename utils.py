@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 coloredlogs.install(logger=logger)
 
-BROWSER_DRIVER_PATH = os.getenv(r"BROWSER_DRIVER_PATH")
+DRIVER_EXECUTABLE_PATH = os.getenv(r"DRIVER_EXECUTABLE_PATH")
 BROWSER_EXECUTABLE_PATH = os.getenv(r"BROWSER_EXECUTABLE_PATH")
 
 CHROME_BROWSER_TYPE = "chrome"
@@ -90,21 +90,21 @@ def setup_selenium_browser_driver(
 ):
 
     if browser_type == CHROME_BROWSER_TYPE:
-        if not BROWSER_DRIVER_PATH:
-            logger.error("The following env are requied: BROWSER_DRIVER_PATH")
+        if not DRIVER_EXECUTABLE_PATH:
+            logger.error("The following env are requied: DRIVER_EXECUTABLE_PATH")
             sys.exit()
         driver = webdriver.Chrome(
-            executable_path=BROWSER_DRIVER_PATH,
+            executable_path=DRIVER_EXECUTABLE_PATH,
             options=get_chrome_options(download_path, is_headless),
         )
     else:
-        if not BROWSER_DRIVER_PATH or not BROWSER_EXECUTABLE_PATH:
+        if not DRIVER_EXECUTABLE_PATH or not BROWSER_EXECUTABLE_PATH:
             logger.error(
-                "The following env are requied: BROWSER_DRIVER_PATH, BROWSER_EXECUTABLE_PATH"
+                "The following env are requied: DRIVER_EXECUTABLE_PATH, BROWSER_EXECUTABLE_PATH"
             )
             sys.exit()
         logger.info("Terminating previous firefox processes..")
-        service_object = FirefoxService(executable_path=BROWSER_DRIVER_PATH)
+        service_object = FirefoxService(executable_path=DRIVER_EXECUTABLE_PATH)
         service_object.start()
         driver = webdriver.Firefox(
             options=get_FirefoxOptions(download_path, is_headless),
