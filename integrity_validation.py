@@ -18,7 +18,7 @@ logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
 
 CLEANED_DIR = "data_cleaned_sample"
 # INPUT_DIR = "sample_data"
-INPUT_DIR = "2022\downloaded_files"
+INPUT_DIR = "2022/downloaded_files"
 ENCODING = 'utf-8'
 
 def reset_eof_of_pdf_return_stream(pdf_stream_in:list):
@@ -79,6 +79,7 @@ if __name__ == '__main__':
             for index in tqdm.trange(len(list_files)):
                 file_path = list_files[index]
                 file_code = file_path.split("/")[-1].split("\\")[1]
+                print("file code: ", file_code)
                 link_file_path = glob_dir + "/" + file_code + "/link.txt"
                 print("file path: ", file_path)
 
