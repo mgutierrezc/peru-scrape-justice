@@ -88,7 +88,6 @@ def get_chrome_options(download_path, is_headless):
 def setup_selenium_browser_driver(
     download_path, is_headless=True, browser_type=CHROME_BROWSER_TYPE
 ):
-
     if browser_type == CHROME_BROWSER_TYPE:
         if not DRIVER_EXECUTABLE_PATH:
             logger.error("The following env are requied: DRIVER_EXECUTABLE_PATH")
