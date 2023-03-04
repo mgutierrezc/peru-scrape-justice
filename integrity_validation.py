@@ -121,21 +121,7 @@ if __name__ == '__main__':
     for index in [2022]:
         glob_dir = GLOBAL_DIR + INPUT_DIR
         out_dir = GLOBAL_DIR + OUTPUT_DIR
-        # test_path = "D:/aux_data/amag_scraped_data/2022/downloaded_files\\00057-2022-97-0107-JP-CI-02_1\\res_2022000570114522000632937.doc"
-        # print("demo 1")
-        # test_path = r"D:\aux_data\amag_scraped_data\2022\downloaded_files\00033-2022-0-0801-JR-FC-01_4\res_2022000070105037000512387.doc"
-        # case = aw.Document(test_path)
-        # case_text = case.get_text()
-        # test_code = "00007-2022-0-2504-JM-CI-01"
-        # regex_str = r"\d*-\d*-\d*-\d*-\d*\w*-\w*-\d*"
-        # code_from_text = re.search(regex_str, case_text).group().strip()
-        # print("-----------")
-        # print("code in file: ", code_from_text)
-        # print("test code equality. are they equal?: ", test_code == code_from_text)
-        # print("---")
-        # print("text: ", case_text)
-        #  case.save(r"D:\Accesos directos\Trabajo\World Bank\WB Repos\peru-scrape-justice\data_cleaned_sample\doc-to-text.html")
-        
+  
         ## actual working code ###
         list_files = glob(glob_dir + "/**/*.doc", recursive=True)
         list_files += glob(glob_dir + "/**/*.pdf", recursive=True)
@@ -175,43 +161,3 @@ if __name__ == '__main__':
                     writer.writerow([expediente_num, num, "", file_path, extension, link, passed_validation, code_from_text])
                 else:
                     writer.writerow([expediente_num, num, "File is unreadable", file_path, extension, link, "", ""])
-                # try:
-                #     if ".pdf" in file_path:
-                #         with open(file_path, 'rb') as file:
-                #             txt = (file.readlines())
-                #         # get the new list terminating correctly
-                #         txtx = reset_eof_of_pdf_return_stream(txt)
-                #         # write to new pdf
-                #         with open(file_path, 'wb') as file:
-                #             file.writelines(txtx)
-                #         pdf = PdfReader(file_path)
-
-                #         num_pages = len(pdf.pages)
-                #         pages = [pdf.pages[index].extract_text() for index in range(num_pages)]
-                #         file_code_validation = file_code.split("_")[0]
-                #         text_str = " ".join(pages)
-                    # else:
-                    #     text_str = getText(file_path)
-                    
-        #             passed_validation = "No" # verified if file code in txt
-        #             if file_code_validation in text_str:
-        #                 passed_validation = "Yes"
-
-        #             writer.writerow([expediente_num,num, '', file_path,link, passed_validation])
-
-        #         except (UnicodeDecodeError) as err:
-        #             logging.warning("UnicodeDecodeError/ShellError while processing file - " + str(file_path))
-        #             logging.exception(err)
-        #             writer.writerow([expediente_num,num, str(err), file_path, link,""])
-        #         except TypeError as err:
-        #           if str(err) == "decode() argument 1 must be str, not None":
-        #             logging.warning("TypeError while processing file - " + str(file_path))
-        #             logging.exception(err)
-        #             writer.writerow([expediente_num,num, str(err), file_path, link,""])
-        #           else:
-        #             raise err
-
-        #     logging.info("Download files cleaned for 2022 data")
-
-        # logging.info("Download files cleaned for all years, cleaning process completed")
-
