@@ -21,10 +21,12 @@ logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
 
 
 CLEANED_DIR = "data_cleaned_sample"
-GLOBAL_DIR = "D:/aux_data/amag_scraped_data/"
+GLOBAL_DIR = "D:\Accesos directos\Trabajo\World Bank\WB Repos\peru-scrape-justice\data/"
 # INPUT_DIR = "sample_data"
 INPUT_DIR = "2022/downloaded_files"
-OUTPUT_DIR = "data_reports"
+OUTPUT_DIR = "2022/data_reports"
+OUTPUT_FILE = "DF_INTEGRITY_2022_UCAYALI"
+LICENSE_PATH = r"D:\Descargas\Aspose.Total.Product.Family.lic"
 ENCODING = 'utf-8'
 
 
@@ -111,8 +113,7 @@ def list_subfolders_with_paths():
     return [f.path for f in os.scandir("data") if f.is_dir()]
 
 if __name__ == '__main__':
-    license_path = r"D:\Descargas\Aspose.Total.Product.Family.lic"
-    with open(license_path, "rb") as f:
+    with open(LICENSE_PATH, "rb") as f:
         license = aw.License()
         license.set_license(f)
 
@@ -126,7 +127,7 @@ if __name__ == '__main__':
         list_files = glob(glob_dir + "/**/*.doc", recursive=True)
         list_files += glob(glob_dir + "/**/*.pdf", recursive=True)
 
-        with codecs.open(f"{out_dir}/DF_INTEGRITY_2022.csv", "w", ENCODING) as fp:
+        with codecs.open(f"{out_dir}/{OUTPUT_FILE}.csv", "w", ENCODING) as fp:
 
             writer = csv.writer(fp)
             writer.writerow(["expediente_num","num", "error","file_path", "extension", "link", "passed_validation", "code_from_file"])
