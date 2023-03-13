@@ -386,11 +386,13 @@ class Scrapper:
 
                         file_names = os.listdir(temp_downloads_dir)
                         if len(file_names) > 0:
-                            temp_file_path = os.path.join(
-                                temp_downloads_dir, file_names[0]
-                            )
-                            shutil.move(temp_file_path, target_download_dir)
-                            logger.info(f"{file_names[0]} downloaded")
+                            while len(file_names) > 0:
+                                temp_file_path = os.path.join(
+                                    temp_downloads_dir, file_names[0]
+                                )
+                                shutil.move(temp_file_path, target_download_dir)
+                                logger.info(f"{file_names[0]} downloaded")
+                                file_names = os.listdir(temp_downloads_dir)
 
                         else:
                             logger.info("file not downloaded, will retry")
@@ -605,7 +607,7 @@ class Scrapper:
                 return self.scraper(
                     file_num, list_comb, driver, year, temp_downloads_dir
                 )
-            elif  isinstance(e, urllib3.connectionpool.MaxRetryError):
+            elif isinstance(e, urllib3.connectionpool.MaxRetryError):
                 print(f"Max retries exceeded: {e.max_retries}")
             else:
                 failed_file = f"{year}-{'-'.join(list_comb)}-{file_num}"
@@ -657,7 +659,7 @@ class Scrapper:
         flag = ""
         empty_num = 0
         temp_downloads_dir = os.path.join(
-            default_temp_download_folder, "_".join(list_comb)
+            default_temp_download_folder, "_".join(list_comb), str(file_number)
         )
         if not os.path.exists(temp_downloads_dir):
             p = Path(temp_downloads_dir)
@@ -665,6 +667,7 @@ class Scrapper:
 
         web_driver = setup_selenium_browser_driver(temp_downloads_dir)
         drivers.append(web_driver)
+
         enable_download_in_headless_chrome(web_driver, temp_downloads_dir)
 
         while flag != DONE_FLAG and empty_num < 5 and not stop_threads:
@@ -775,4 +778,3 @@ if __name__ == "__main__":
         mark_year_done(scrape_year)
 
     kill_web_drivers(drivers)
-
