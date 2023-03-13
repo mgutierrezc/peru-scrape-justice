@@ -7,13 +7,12 @@ from glob import glob
 import pandas as pd
 import tqdm
 from PyPDF2 import PdfReader 
-from PyPDF2.errors import EmptyFileError
 import codecs
 import csv
 import logging
 import argparse
 import regex as re
-import datetime, textract, olefile
+import datetime
 import aspose.words as aw
 import win32com.client
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
@@ -38,6 +37,9 @@ def search_regexes(text, regexes):
 
 
 def read_doc(file_path):
+    """
+    Reads the content of doc. If doc is unreadable, returns none
+    """
     try:
         case = aw.Document(file_path)
         case_text = case.get_text()
@@ -47,6 +49,9 @@ def read_doc(file_path):
 
 
 def read_pdf(file_path):
+    """
+    Reads the content of pdf. If pdf is unreadable, returns none
+    """
     try:
         reader = PdfReader(file_path)
         text = ""
@@ -55,20 +60,6 @@ def read_pdf(file_path):
         return text
     except:
         return None
-
-    # with open(file_path, 'rb') as file:
-    #     txt = (file.readlines())
-    # # get the new list terminating correctly
-    # txtx = reset_eof_of_pdf_return_stream(txt)
-    # # write to new pdf
-    # with open(file_path, 'wb') as file:
-    #     file.writelines(txtx)
-    # pdf = PdfReader(file_path)
-
-    # num_pages = len(pdf.pages)
-    # pages = [pdf.pages[index].extract_text() for index in range(num_pages)]
-    # file_code_validation = file_code.split("_")[0]
-    # text_str = " ".join(pages)
 
 
 def get_string_ole(filepath):
