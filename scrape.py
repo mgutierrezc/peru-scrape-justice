@@ -1,19 +1,13 @@
 import argparse
 import datetime
-import functools
-from lib2to3.pytree import Node
 import os
 import shutil
 import signal
-import sys
-import threading
 import time
 import concurrent.futures
 from pathlib import Path
 
 from dotenv import load_dotenv
-import psutil
-from requests import HTTPError, Timeout
 from selenium.common.exceptions import (
     NoSuchElementException,
     TimeoutException,
@@ -32,7 +26,6 @@ from constants import list_all_comb
 from utils import (
     download_wait,
     is_element_present,
-    kill_os_process,
     setup_selenium_browser_driver,
     kill_web_drivers,
     clear_temp_folder,
