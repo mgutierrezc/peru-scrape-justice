@@ -66,6 +66,9 @@ def get_chrome_options(download_path, is_headless):
     if is_headless:
         chrome_options.add_argument("--headless")
 
+    if BROWSER_EXECUTABLE_PATH:
+        chrome_options.binary_location = BROWSER_EXECUTABLE_PATH
+
     chrome_options.add_argument("--ignore-certificate-errors")
     chrome_options.add_argument("--test-type")
     chrome_options.add_argument("--no-sandbox")
