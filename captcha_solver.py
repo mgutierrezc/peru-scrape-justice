@@ -29,13 +29,17 @@ def azcaptcha_solver_get(captcha_id):
         res = requests.get(azcaptcha_url, params=params)
         res_answer = json.loads(res.text)
         captcha_itext = res_answer["request"]
-        logger.info({"captcha_itext": captcha_itext})
+        logger.info({"captcha_text": captcha_itext})
+        logger.info({"captcha_id": captcha_id})
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
     if captcha_itext == "ERROR_USER_BALANCE_ZERO":
         raise SystemExit(captcha_itext)
 
-    if captcha_itext == "CAPCHA_NOT_READY" or captcha_itext == "ERROR_CAPTCHA_UNSOLVABLE":
+    if (
+        captcha_itext == "CAPCHA_NOT_READY"
+        or captcha_itext == "ERROR_CAPTCHA_UNSOLVABLE"
+    ):
         global tries
         tries += 1
         logger.info(
@@ -88,6 +92,12 @@ def azcaptcha_solver_post(driver):
         res_answer = json.loads(res.text)
         captcha_id = res_answer["request"]
         if captcha_id:
+            if (
+                captcha_id
+                == "ERROR_TODAY_NO_SLOT_AVAILABLE_UPGRAGE_PACKAGE_OR_CHANGE_TO_USE_BALANCE"
+            ):
+                logger.error(f"captcha error: {captcha_id}")
+                exit()
             time.sleep(5)
             return azcaptcha_solver_get(captcha_id)
         return None
