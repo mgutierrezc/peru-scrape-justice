@@ -201,4 +201,10 @@ Since the following procedure requires data temporarily exposed to public access
 nohup python scrape.py -y 2022 -l ANCASH > scrape.log 2>&1 &
 #### stoping the script
 ps aux | grep scrape.py 
+
 kill <process id>
+
+### location strting
+```
+'AMAZONAS','ANCASH','APURIMAC','AREQUIPA','AYACUCHO','CAJAMARCA','CALLAO','CAÑETE','DEL SANTA','HUANCAVELICA','HUANUCO','HUAURA','ICA','JUNIN','LA LIBERTAD','LAMBAYEQUE','LIMA','LIMA ESTE','LIMA NORTE','LIMA SUR','LORETO','MADRE DE DIOS','MOQUEGUA','PASCO','PIURA','PUNO','SAN MARTIN','SELVA CENTRAL','SULLANA','TACNA','TUMBES','UCAYALI','VENTANILLA - LIMA NOROESTE'
+```
