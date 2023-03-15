@@ -196,3 +196,9 @@ Since the following procedure requires data temporarily exposed to public access
 2. Configure aws with your access key ID & secret: `aws configure`
 3. Upload data to your S3 bucket, e.g. `aws s3 cp /code/data_cleaned s3://mybucket/ --recursive`
 4. Download data to your PC
+
+### running using nohup
+nohup python scrape.py -y 2022 -l ANCASH > scrape.log 2>&1 &
+#### stoping the script
+ps aux | grep scrape.py 
+kill <process id>
