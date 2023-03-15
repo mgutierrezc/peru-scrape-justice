@@ -20,3 +20,4 @@ __pycache__/*
 build/
 .env
 geckodriver.log
+scrape.log
