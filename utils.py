@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from random import uniform
 import shutil
 import subprocess
 import sys
@@ -19,7 +18,6 @@ from selenium.common.exceptions import (
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
-import urllib3
 
 
 load_dotenv()

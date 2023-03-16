@@ -200,7 +200,7 @@ Since the following procedure requires data temporarily exposed to public access
 ### running using nohup
 nohup python scrape.py -y 2022 -l ANCASH > scrape.log 2>&1 &
 #### stoping the script
-ps aux | grep scrape.py 
+ps aux | grep python scrape.py 
 
 kill <process id>
 
