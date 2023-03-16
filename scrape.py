@@ -603,10 +603,12 @@ class Scrapper:
             elif isinstance(e, urllib3.connectionpool.MaxRetryError):
                 print(f"Max retries exceeded: {e.max_retries}")
             else:
+               
                 failed_file = f"{year}-{'-'.join(list_comb)}-{file_num}"
                 faulty_downloads_path = os.path.join(
                     faulty_downloads_dir, f"{failed_file}.txt"
                 )
+                logger.warning("adding failed_file {failed_file} to faulty downloads")
                 Path(faulty_downloads_path).touch()
 
     def retry_download(
