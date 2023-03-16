@@ -675,7 +675,7 @@ class Scrapper:
                 file_number, list_comb, web_driver, year, temp_downloads_dir
             )
             logger.info(f"{list_comb} file no {file_number}'s flag: {flag}")
-            if flag == "NO MORE FILES, DELAYED ERROR":
+            if flag == "NO MORE FILES, DELAYED ERROR" or not flag:
                 empty_num = empty_num + 1
                 logger.info(
                     "File was empty, if next "
