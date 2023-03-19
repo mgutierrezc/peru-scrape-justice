@@ -96,8 +96,8 @@ def azcaptcha_solver_post(driver):
                 captcha_id
                 == "ERROR_TODAY_NO_SLOT_AVAILABLE_UPGRAGE_PACKAGE_OR_CHANGE_TO_USE_BALANCE"
             ):
-                logger.error(f"captcha error: {captcha_id}")
-                exit()
+                raise (f"captcha error: {captcha_id}")
+
             time.sleep(5)
             return azcaptcha_solver_get(captcha_id)
         return None
