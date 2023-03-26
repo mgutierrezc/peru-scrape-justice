@@ -434,7 +434,7 @@ class Scrapper:
     # For entering the site and scraping everything inside
     # This is the master function
     # Please do not tamper with the sleep timers anywhere in this code
-    def scraper(self, file_num, list_comb, driver, year, temp_downloads_dir):
+    def scraper(self, file_num, list_comb, driver, year, temp_downloads_dir, attempts=0):
 
         try:
             driver.get(LINK)
@@ -573,9 +573,12 @@ class Scrapper:
                     logger.warning(
                         f"Failed to click form button, restarting file_num {file_num}"
                     )
-                    return self.scraper(
-                        file_num, list_comb, driver, year, temp_downloads_dir
-                    )
+                    if attempts < 5:
+                        return self.scraper(
+                            file_num, list_comb, driver, year, temp_downloads_dir, attempts+1
+                        )
+                    else:
+                        raise RuntimeError("Error Occurred")
 
                 if no_files:
                     logger.info("NO MORE FILES, DELAYED ERROR")
@@ -595,7 +598,7 @@ class Scrapper:
                 handle_keyboard_cancel(None, None)
             elif isinstance(e, PermissionError):
                 logger.warning(
-                    f"restarting scraping from the current file number due to PermissionError"
+                    "restarting scraping from the current file number due to PermissionError"
                 )
                 return self.scraper(
                     file_num, list_comb, driver, year, temp_downloads_dir
