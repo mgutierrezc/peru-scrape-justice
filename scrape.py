@@ -434,7 +434,9 @@ class Scrapper:
     # For entering the site and scraping everything inside
     # This is the master function
     # Please do not tamper with the sleep timers anywhere in this code
-    def scraper(self, file_num, list_comb, driver, year, temp_downloads_dir, attempts=0):
+    def scraper(
+        self, file_num, list_comb, driver, year, temp_downloads_dir, attempts=0
+    ):
 
         try:
             driver.get(LINK)
@@ -514,7 +516,7 @@ class Scrapper:
                         break
                     else:
                         if is_element_present("id", "btnReload", driver):
-                            logger.warning(f"Captcha solved incorrectly, retrying...")
+                            logger.warning("Captcha solved incorrectly, retrying...")
 
                             if not inputElement.get_attribute("value"):
                                 # restart scraper since input values are empty
@@ -544,7 +546,7 @@ class Scrapper:
                         ).is_displayed()
                         if not loader_is_displayed:
                             break
-                    except Exception as e:
+                    except Exception:
                         break
 
                 time.sleep(sleep_time)
@@ -575,7 +577,12 @@ class Scrapper:
                     )
                     if attempts < 5:
                         return self.scraper(
-                            file_num, list_comb, driver, year, temp_downloads_dir, attempts+1
+                            file_num,
+                            list_comb,
+                            driver,
+                            year,
+                            temp_downloads_dir,
+                            attempts + 1,
                         )
                     else:
                         raise RuntimeError("Error Occurred")
@@ -604,7 +611,7 @@ class Scrapper:
                     file_num, list_comb, driver, year, temp_downloads_dir
                 )
             elif isinstance(e, urllib3.connectionpool.MaxRetryError):
-                print(f"Max retries exceeded: {e.max_retries}")
+                logger.warning(f"Max retries exceeded: {e.max_retries}")
             else:
 
                 failed_file = f"{year}-{'-'.join(list_comb)}-{file_num}"
