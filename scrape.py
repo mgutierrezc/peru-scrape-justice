@@ -664,7 +664,7 @@ class Scrapper:
         flag = ""
         empty_num = 0
         temp_downloads_dir = os.path.join(
-            default_temp_download_folder, "_".join(list_comb), str(file_number)
+            default_temp_download_folder, "_".join(list_comb)
         )
         if not os.path.exists(temp_downloads_dir):
             p = Path(temp_downloads_dir)
