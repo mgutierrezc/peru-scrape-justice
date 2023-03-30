@@ -398,8 +398,8 @@ class Scrapper:
                             )
 
                             if not success:
-                                faulty_downloads_path = (
-                                    f"{faulty_downloads_dir}/{expediente_n}.txt"
+                                faulty_downloads_path = os.path.join(
+                                    faulty_downloads_dir, f"{expediente_n}.txt"
                                 )
                                 Path(faulty_downloads_path).touch()
 
