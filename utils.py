@@ -124,7 +124,7 @@ def kill_os_process(process):
 
     try:
         if sys.platform.startswith("linux"):
-            subprocess.run(["pkill", process])
+            subprocess.run(["killall", process])
         elif sys.platform.startswith("win32"):
             if is_windows_process_running(f"{process}.exe"):
                 os.system(f"taskkill /F /IM {process}.exe")
