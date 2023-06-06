@@ -26,6 +26,7 @@ from constants import list_all_comb
 from utils import (
     download_wait,
     is_element_present,
+    kill_os_process,
     setup_selenium_browser_driver,
     kill_web_drivers,
     clear_temp_folder,
@@ -713,6 +714,8 @@ def handle_keyboard_cancel(signal, frame):
 
 
 if __name__ == "__main__":
+    kill_os_process("chrome")
+    kill_os_process("chromedriver")
     # Register the keyboard interrupt signal handler
     signal.signal(signal.SIGINT, handle_keyboard_cancel)
 
