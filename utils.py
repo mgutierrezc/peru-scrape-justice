@@ -90,7 +90,6 @@ def setup_selenium_browser_driver(
 ):
     if browser_type == CHROME_BROWSER_TYPE:
         kill_os_process("chrome")
-        kill_os_process("chromedriver")
         if not DRIVER_EXECUTABLE_PATH:
             logger.error("The following env are requied: DRIVER_EXECUTABLE_PATH")
             sys.exit()
