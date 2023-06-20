@@ -111,7 +111,7 @@ def parse_args():
         action="store",
         type=int,
         nargs="*",
-        choices=list(range(2019, current_year + 1)),
+        choices=list(range(2005, current_year + 1)),
         default=None,
         help="years to scrape, default to 2019",
         required=True,
