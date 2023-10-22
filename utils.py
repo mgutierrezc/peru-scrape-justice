@@ -1,120 +1,210 @@
-import torch
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import time
+import coloredlogs
+import logging
+import psutil
+from dotenv import load_dotenv
+from selenium import webdriver
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    StaleElementReferenceException,
+    WebDriverException,
+)
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 
 
-class CTCLabelConverter(object):
-    """ Convert between text-label and text-index """
+load_dotenv()
+logging.basicConfig(
+    format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+coloredlogs.install(logger=logger)
 
-    def __init__(self, character):
-        # character (str): set of the possible characters.
-        dict_character = list(character)
+DRIVER_EXECUTABLE_PATH = os.getenv(r"DRIVER_EXECUTABLE_PATH")
+BROWSER_EXECUTABLE_PATH = os.getenv(r"BROWSER_EXECUTABLE_PATH")
 
-        self.dict = {}
-        for i, char in enumerate(dict_character):
-            # NOTE: 0 is reserved for 'blank' token required by CTCLoss
-            self.dict[char] = i + 1
-
-        self.character = ['[blank]'] + dict_character  # dummy '[blank]' token for CTCLoss (index 0)
-
-    def encode(self, text, batch_max_length=25):
-        """convert text-label into text-index.
-        input:
-            text: text labels of each image. [batch_size]
-
-        output:
-            text: concatenated text index for CTCLoss.
-                    [sum(text_lengths)] = [text_index_0 + text_index_1 + ... + text_index_(n - 1)]
-            length: length of each text. [batch_size]
-        """
-        length = [len(s) for s in text]
-        text = ''.join(text)
-        text = [self.dict[char] for char in text]
-
-        return (torch.IntTensor(text), torch.IntTensor(length))
-
-    def decode(self, text_index, length):
-        """ convert text-index into text-label. """
-        texts = []
-        index = 0
-        for l in length:
-            t = text_index[index:index + l]
-
-            char_list = []
-            for i in range(l):
-                if t[i] != 0 and (not (i > 0 and t[i - 1] == t[i])):  # removing repeated characters and blank.
-                    char_list.append(self.character[t[i]])
-            text = ''.join(char_list)
-
-            texts.append(text)
-            index += l
-        return texts
+CHROME_BROWSER_TYPE = "chrome"
+FIREFOX_BROWSER_TYPE = "firefox"
 
 
-class AttnLabelConverter(object):
-    """ Convert between text-label and text-index """
+def get_FirefoxOptions(download_path, is_headless):
+    options = FirefoxOptions()
+    if is_headless:
+        options.add_argument("-headless")
 
-    def __init__(self, character):
-        # character (str): set of the possible characters.
-        # [GO] for the start token of the attention decoder. [s] for end-of-sentence token.
-        list_token = ['[GO]', '[s]']  # ['[s]','[UNK]','[PAD]','[GO]']
-        list_character = list(character)
-        self.character = list_token + list_character
+    options.binary_location = BROWSER_EXECUTABLE_PATH
 
-        self.dict = {}
-        for i, char in enumerate(self.character):
-            # print(i, char)
-            self.dict[char] = i
+    if not os.path.exists(download_path):
+        d_path = Path(download_path)
+        d_path.mkdir(parents=True)
 
-    def encode(self, text, batch_max_length=25):
-        """ convert text-label into text-index.
-        input:
-            text: text labels of each image. [batch_size]
-            batch_max_length: max length of text label in the batch. 25 by default
-
-        output:
-            text : the input of attention decoder. [batch_size x (max_length+2)] +1 for [GO] token and +1 for [s] token.
-                text[:, 0] is [GO] token and text is padded with [GO] token after [s] token.
-            length : the length of output of attention decoder, which count [s] token also. [3, 7, ....] [batch_size]
-        """
-        length = [len(s) + 1 for s in text]  # +1 for [s] at end of sentence.
-        # batch_max_length = max(length) # this is not allowed for multi-gpu setting
-        batch_max_length += 1
-        # additional +1 for [GO] at first step. batch_text is padded with [GO] token after [s] token.
-        batch_text = torch.LongTensor(len(text), batch_max_length + 1).fill_(0)
-        for i, t in enumerate(text):
-            text = list(t)
-            text.append('[s]')
-            text = [self.dict[char] for char in text]
-            batch_text[i][1:1 + len(text)] = torch.LongTensor(text)  # batch_text[:, 0] = [GO] token
-        return (batch_text.to(device), torch.IntTensor(length).to(device))
-
-    def decode(self, text_index, length):
-        """ convert text-index into text-label. """
-        texts = []
-        for index, l in enumerate(length):
-            text = ''.join([self.character[i] for i in text_index[index, :]])
-            texts.append(text)
-        return texts
+    options.set_preference("browser.download.dir", download_path)
+    options.set_preference("browser.download.folderList", 2)
+    options.set_preference("browser.download.manager.showWhenStarting", False)
+    options.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/pdf")
+    return options
 
 
-class Averager(object):
-    """Compute average for torch.Tensor, used for loss average."""
+def set_up_firefox_profile():
+    profile = webdriver.FirefoxProfile()
+    profile.set_preference("security.fileuri.strict_origin_policy", False)
+    profile.update_preferences()
+    return profile
 
-    def __init__(self):
-        self.reset()
 
-    def add(self, v):
-        count = v.data.numel()
-        v = v.data.sum()
-        self.n_count += count
-        self.sum += v
+def get_chrome_options(download_path, is_headless):
+    chrome_options = ChromeOptions()
+    if is_headless:
+        chrome_options.add_argument("--headless")
 
-    def reset(self):
-        self.n_count = 0
-        self.sum = 0
+    if BROWSER_EXECUTABLE_PATH:
+        chrome_options.binary_location = BROWSER_EXECUTABLE_PATH
 
-    def val(self):
-        res = 0
-        if self.n_count != 0:
-            res = self.sum / float(self.n_count)
-        return res
+    chrome_options.add_argument("--ignore-certificate-errors")
+    chrome_options.add_argument("--test-type")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_experimental_option(
+        "excludeSwitches", ["enable-logging"]
+    )  # comment to enable devtools logs
+    prefs = {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": False,
+        "safebrowsing.disable_download_protection": True,
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
+    return chrome_options
+
+
+def setup_selenium_browser_driver(
+    download_path, is_headless=True, browser_type=CHROME_BROWSER_TYPE
+):
+    if browser_type == CHROME_BROWSER_TYPE:        
+        if not DRIVER_EXECUTABLE_PATH:
+            logger.error("The following env are requied: DRIVER_EXECUTABLE_PATH")
+            sys.exit()
+        driver = webdriver.Chrome(
+            executable_path=DRIVER_EXECUTABLE_PATH,
+            options=get_chrome_options(download_path, is_headless),
+        )
+    else:
+        if not DRIVER_EXECUTABLE_PATH or not BROWSER_EXECUTABLE_PATH:
+            logger.error(
+                "The following env are requied: DRIVER_EXECUTABLE_PATH, BROWSER_EXECUTABLE_PATH"
+            )
+            sys.exit()
+        logger.info("Terminating previous firefox processes..")
+        service_object = FirefoxService(executable_path=DRIVER_EXECUTABLE_PATH)
+        service_object.start()
+        driver = webdriver.Firefox(
+            options=get_FirefoxOptions(download_path, is_headless),
+            firefox_profile=set_up_firefox_profile(),
+        )
+
+    return driver
+
+
+def is_windows_process_running(process_name):
+    for proc in psutil.process_iter(["name"]):
+        if proc.info["name"] == process_name:
+            return True
+    return False
+
+
+def kill_os_process(process):
+
+    try:
+        if sys.platform.startswith("linux"):
+            subprocess.run(["killall", process])
+        elif sys.platform.startswith("win32"):
+            if is_windows_process_running(f"{process}.exe"):
+                os.system(f"taskkill /F /IM {process}.exe")
+        else:
+            pass
+    except Exception:
+        pass
+
+
+def kill_web_drivers(drivers):
+    try:
+        for driver in drivers:
+            driver.close()
+            driver.quit()
+    except Exception as e:
+        pass
+
+
+def download_wait(directory, timeout, driver, nfiles=False):
+    """
+    Wait for downloads to finish with a specified timeout.
+    Args
+    ----
+    directory : str
+        The path to the folder where the files will be downloaded.
+    timeout : int
+        How many seconds to wait until timing out.
+    nfiles : int, defaults to None
+        If provided, also wait for the expected number of files.
+
+    Taken from - https://stackoverflow.com/questions/34338897/python-selenium-find-out-when-a-download-has-completed#:~:text=There%20is%20no%20built%2Din,file%20exists%20to%20read%20it
+    """
+    seconds = 0
+    dl_wait = True
+    while dl_wait and seconds < timeout:
+        time.sleep(1)
+        dl_wait = False
+        files = os.listdir(directory)
+        if nfiles:
+            if len(files) != nfiles:
+                dl_wait = True
+
+        for fname in files:
+            if fname.endswith(".crdownload"):
+                dl_wait = True
+
+        seconds += 1
+    return seconds
+
+
+# This function cross checks if the element we want to extract exists or not
+# not using this will result in errors
+def is_element_present(by, value, driver):
+    try:
+        driver.find_element(by=by, value=value)
+    except (
+        NoSuchElementException,
+        TimeoutException,
+        StaleElementReferenceException,
+        WebDriverException,
+    ):
+        return False
+    return True
+
+
+def clear_temp_folder(temp_folder_path):
+    # delete all the files in the folder
+    for filename in os.listdir(temp_folder_path):
+        file_path = os.path.join(temp_folder_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print(f"Failed to delete {file_path}. Reason: {e}")
+
+    # delete all the subfolders in the folder
+    for subfolder_name in os.listdir(temp_folder_path):
+        subfolder_path = os.path.join(temp_folder_path, subfolder_name)
+        try:
+            if os.path.isdir(subfolder_path):
+                shutil.rmtree(subfolder_path)
+        except Exception as e:
+            print(f"Failed to delete {subfolder_path}. Reason: {e}")

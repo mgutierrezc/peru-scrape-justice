@@ -1,3 +1,9 @@
+data_cleaned_sample/
+.vscode/
+data_old/
+faulty_downloads_old/
+temp_downloads_old/
+data_cleaned_sample/
 data_raw/
 faulty_downloads/
 temp_downloads/
@@ -14,3 +20,4 @@ __pycache__/*
 build/
 .env
 geckodriver.log
+scrape.log
